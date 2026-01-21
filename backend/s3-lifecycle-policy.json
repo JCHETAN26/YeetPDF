@@ -1,0 +1,32 @@
+{
+  "Rules": [
+    {
+      "ID": "AutoExpirePDFs",
+      "Status": "Enabled",
+      "Filter": {
+        "And": {
+          "Prefix": "pdfs/",
+          "Tags": [
+            {
+              "Key": "AutoExpire",
+              "Value": "true"
+            }
+          ]
+        }
+      },
+      "Expiration": {
+        "Days": 7
+      }
+    },
+    {
+      "ID": "CleanupIncompleteUploads",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "pdfs/"
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 1
+      }
+    }
+  ]
+}

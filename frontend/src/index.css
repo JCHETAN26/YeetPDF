@@ -1,0 +1,250 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Premium PDF Sharing Platform - Design System
+   Inspired by Notion & Apple aesthetics
+   All colors in HSL format
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Warm, premium neutrals */
+    --background: 40 20% 99%;
+    --foreground: 220 20% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
+
+    /* Refined blue accent */
+    --primary: 220 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Soft secondary */
+    --secondary: 220 15% 96%;
+    --secondary-foreground: 220 20% 14%;
+
+    /* Muted surfaces */
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 50%;
+
+    /* Subtle accent */
+    --accent: 220 15% 94%;
+    --accent-foreground: 220 20% 14%;
+
+    /* Status colors */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 220 70% 50%;
+
+    --radius: 0.75rem;
+
+    /* Heatmap gradient colors */
+    --heatmap-low: 160 60% 85%;
+    --heatmap-mid: 45 80% 70%;
+    --heatmap-high: 15 90% 55%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 20% 14% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(220 20% 14% / 0.05), 0 2px 4px -2px hsl(220 20% 14% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(220 20% 14% / 0.08), 0 4px 6px -4px hsl(220 20% 14% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(220 20% 14% / 0.1), 0 8px 10px -6px hsl(220 20% 14% / 0.05);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 220 10% 30%;
+    --sidebar-primary: 220 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 220 20% 14%;
+    --sidebar-border: 220 15% 92%;
+    --sidebar-ring: 220 70% 50%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 220 10% 95%;
+
+    --card: 220 20% 10%;
+    --card-foreground: 220 10% 95%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 220 10% 95%;
+
+    --primary: 220 70% 60%;
+    --primary-foreground: 220 20% 8%;
+
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 220 10% 95%;
+
+    --muted: 220 15% 15%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 220 15% 18%;
+    --accent-foreground: 220 10% 95%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 220 70% 60%;
+
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 220 70% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 15%;
+    --sidebar-accent-foreground: 220 10% 95%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 220 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Premium card styling */
+  .premium-card {
+    @apply bg-card rounded-2xl border border-border;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Floating action button */
+  .fab {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-3 font-medium transition-all duration-200;
+    @apply bg-primary text-primary-foreground;
+    box-shadow: var(--shadow-md);
+  }
+
+  .fab:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+  }
+
+  /* Subtle hover effect */
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Page transition animation */
+  .page-enter {
+    animation: pageEnter 0.4s ease-out forwards;
+  }
+
+  .page-exit {
+    animation: pageExit 0.3s ease-in forwards;
+  }
+
+  /* Progress bar animation */
+  .progress-bar {
+    @apply h-0.5 bg-primary transition-all duration-300 ease-out;
+  }
+
+  /* Heatmap cell styling */
+  .heatmap-cell {
+    @apply rounded-lg transition-all duration-200 cursor-pointer;
+  }
+
+  .heatmap-cell:hover {
+    transform: scale(1.05);
+  }
+
+  /* Upload zone styling */
+  .upload-zone {
+    @apply relative rounded-2xl border-2 border-dashed border-border bg-card transition-all duration-200;
+  }
+
+  .upload-zone:hover,
+  .upload-zone.active {
+    @apply border-primary bg-accent/50;
+  }
+
+  /* Sponsored badge */
+  .sponsored-badge {
+    @apply inline-flex items-center px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-muted rounded;
+  }
+}
+
+@layer utilities {
+  /* Text balance for headings */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Smooth scroll container */
+  .smooth-scroll {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Keyframe animations */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pageExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
