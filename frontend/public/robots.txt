@@ -10,5 +10,26 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
+# YeetPDF - Free PDF Sharing with Analytics
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /v/
+Disallow: /analytics/
+
+# Special rules for search engines
+User-agent: Googlebot
+Allow: /
+Disallow: /v/
+Disallow: /analytics/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /v/
+Disallow: /analytics/
+
+# Sitemap
+Sitemap: https://yeetpdf.com/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1

@@ -1,0 +1,21 @@
+{
+  "name": "YeetPDF",
+  "short_name": "YeetPDF",
+  "description": "Free PDF sharing with analytics and heatmaps",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ef4444",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
