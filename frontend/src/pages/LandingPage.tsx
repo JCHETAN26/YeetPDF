@@ -4,7 +4,6 @@ import {
   Upload, 
   FileText, 
   AlertCircle, 
-  CheckCircle2, 
   Zap, 
   Eye, 
   Shield, 
@@ -15,16 +14,13 @@ import {
   ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { uploadPDF } from "@/lib/api";
 import { UserMenu } from "@/components/UserMenu";
 import { UploadDialog } from "@/components/UploadDialog";
-import { useAuth, getAuthHeaders } from "@/contexts/AuthContext";
-import type { UploadProgress } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -67,12 +63,6 @@ const LandingPage = () => {
         setError("Please upload a PDF file");
       }
     }
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
@@ -129,25 +119,20 @@ const LandingPage = () => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {!isUploading && (
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              )}
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handleFileSelect}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
               
               <div className="flex flex-col items-center gap-5">
                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
                   error ? "bg-destructive/10" : 
-                  uploadProgress?.phase === 'complete' ? "bg-primary/10" :
                   isDragging ? "scale-110 bg-primary/10" : "bg-accent"
                 }`}>
                   {error ? (
                     <AlertCircle className="w-7 h-7 text-destructive" />
-                  ) : uploadProgress?.phase === 'complete' ? (
-                    <CheckCircle2 className="w-7 h-7 text-primary" />
                   ) : (
                     <Upload className={`w-7 h-7 transition-colors duration-300 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                   )}

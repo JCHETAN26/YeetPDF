@@ -123,6 +123,89 @@ router.post('/confirm/:id', optionalAuthMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/upload/direct
+ * Single-step upload (request + upload combined)
+ * IMPORTANT: This must come BEFORE /:id route to avoid conflicts
+ */
+router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const { customSlug, pageCount } = req.body;
+    
+    console.log('[UPLOAD] Direct upload request:', {
+      fileName: file?.originalname,
+      fileSize: file?.size,
+      customSlug,
+      pageCount,
+      hasAuth: !!req.user
+    });
+    
+    if (!file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+    
+    const id = await generateId(10, customSlug);
+    console.log('[UPLOAD] Generated ID:', id, 'from customSlug:', customSlug);
+    
+    let s3Key = null;
+    
+    // Upload to S3 if configured
+    if (isS3Configured()) {
+      const result = await uploadPDFToS3(id, file.originalname, file.buffer);
+      s3Key = result.key;
+    } else {
+      // Store in memory (demo mode)
+      pdfData.set(id, file.buffer);
+    }
+    
+    // Use provided page count or estimate from file size
+    const actualPageCount = pageCount ? parseInt(pageCount, 10) : Math.max(1, Math.floor(file.size / 50000));
+    
+    console.log('[UPLOAD] Page count:', actualPageCount, '(provided:', pageCount, ')');
+    
+    // Create document record
+    const doc = createDocument(id, {
+      fileName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+      pageCount: actualPageCount,
+      s3Key,
+      ownerId: req.user?.userId || null,
+    });
+    
+    // Link document to user if logged in
+    if (req.user) {
+      linkDocumentToUser(req.user.userId, id);
+    }
+    
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    
+    const responseDoc = {
+      success: true,
+      document: {
+        ...doc,
+        shareUrl: `${frontendUrl}/v/${id}`,
+        viewerUrl: `/v/${id}`,
+        analyticsUrl: `/analytics/${id}`,
+        pdfUrl: `${baseUrl}/api/pdf/${id}`
+      }
+    };
+    
+    console.log('[UPLOAD] Response:', {
+      id,
+      shareUrl: responseDoc.document.shareUrl,
+      viewerUrl: responseDoc.document.viewerUrl
+    });
+    
+    res.json(responseDoc);
+  } catch (err) {
+    console.error('Direct upload error:', err);
+    res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+/**
  * POST /api/upload/:id
  * Direct upload endpoint (receives the PDF file)
  * Used when client doesn't support presigned URLs or S3 is not configured
@@ -174,68 +257,6 @@ router.post('/:id', upload.single('file'), async (req, res) => {
     });
   } catch (err) {
     console.error('Upload error:', err);
-    res.status(500).json({ error: err.message || 'Upload failed' });
-  }
-});
-
-/**
- * POST /api/upload/direct
- * Single-step upload (request + upload combined)
- */
-router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req, res) => {
-  try {
-    const file = req.file;
-    const { customSlug } = req.body;
-    
-    if (!file) {
-      return res.status(400).json({ error: 'No file provided' });
-    }
-    
-    const id = await generateId(10, customSlug);
-    let s3Key = null;
-    
-    // Upload to S3 if configured
-    if (isS3Configured()) {
-      const result = await uploadPDFToS3(id, file.originalname, file.buffer);
-      s3Key = result.key;
-    } else {
-      // Store in memory (demo mode)
-      pdfData.set(id, file.buffer);
-    }
-    
-    // Estimate page count
-    const estimatedPages = Math.max(1, Math.floor(file.size / 50000));
-    
-    // Create document record
-    const doc = createDocument(id, {
-      fileName: file.originalname,
-      fileSize: file.size,
-      mimeType: file.mimetype,
-      pageCount: estimatedPages,
-      s3Key,
-      ownerId: req.user?.userId || null,
-    });
-    
-    // Link document to user if logged in
-    if (req.user) {
-      linkDocumentToUser(req.user.userId, id);
-    }
-    
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    
-    res.json({
-      success: true,
-      document: {
-        ...doc,
-        shareUrl: `${frontendUrl}/v/${id}`,
-        viewerUrl: `/v/${id}`,
-        analyticsUrl: `/analytics/${id}`,
-        pdfUrl: `${baseUrl}/api/pdf/${id}`
-      }
-    });
-  } catch (err) {
-    console.error('Direct upload error:', err);
     res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });

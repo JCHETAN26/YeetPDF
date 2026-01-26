@@ -5,6 +5,10 @@ import type {
   PageViewEvent,
   PageEngagement,
 } from '@/types';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 // API Base URL - use backend in production, fallback to mock for demo
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -32,6 +36,8 @@ export async function uploadPDF(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<PDFDocument> {
   
+  console.log('[API] uploadPDF called:', { fileName: file.name, customSlug, USE_BACKEND });
+  
   // Try backend API first
   if (USE_BACKEND) {
     return uploadPDFToBackend(file, customSlug, onProgress);
@@ -47,24 +53,43 @@ async function uploadPDFToBackend(
   customSlug?: string,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<PDFDocument> {
+  console.log('[API] uploadPDFToBackend:', { customSlug, API_BASE });
+  
   onProgress?.({ phase: 'preparing', progress: 0, message: 'Preparing upload...' });
+  
+  // Read PDF to get actual page count
+  let pageCount = 1; // default fallback
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    pageCount = pdf.numPages;
+    console.log('[API] Detected PDF pages:', pageCount);
+  } catch (err) {
+    console.warn('[API] Could not detect page count, using default:', err);
+  }
   
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('pageCount', pageCount.toString());
   if (customSlug) {
     formData.append('customSlug', customSlug);
+    console.log('[API] Added customSlug to FormData:', customSlug);
   }
   
   onProgress?.({ phase: 'uploading', progress: 30, message: 'Uploading...' });
   
   // Get auth token if available
-  const token = localStorage.getItem('pdfshare_token');
+  const token = localStorage.getItem('yeetpdf_token');
   const headers: Record<string, string> = {};
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
-  const response = await fetch(`${API_BASE}/upload/direct`, {
+  const uploadUrl = `${API_BASE}/upload/direct`;
+  console.log('[API] Uploading to:', uploadUrl);
+  
+  const response = await fetch(uploadUrl, {
     method: 'POST',
     body: formData,
     headers,
@@ -78,6 +103,8 @@ async function uploadPDFToBackend(
   onProgress?.({ phase: 'processing', progress: 80, message: 'Processing...' });
   
   const result = await response.json();
+  
+  console.log('[API] Upload response:', result);
   
   onProgress?.({ phase: 'complete', progress: 100, message: 'Complete!' });
   
@@ -459,7 +486,35 @@ function calculateEngagementScore(page: PageEngagement): number {
 
 // Start a new viewing session
 export function startSession(documentId: string): string {
+  // Check if we already have a session for this document (within last hour)
+  const storageKey = `yeetpdf_session_${documentId}`;
+  const existingSession = localStorage.getItem(storageKey);
+  
+  if (existingSession) {
+    try {
+      const { sessionId, timestamp } = JSON.parse(existingSession);
+      const age = Date.now() - timestamp;
+      // If session is less than 1 hour old, reuse it
+      if (age < 60 * 60 * 1000) {
+        console.log('[Analytics] Reusing existing session:', sessionId);
+        return sessionId;
+      }
+    } catch (e) {
+      // Invalid session data, create new one
+    }
+  }
+  
+  // Create new session
   const sessionId = generateId(16);
+  
+  // Store in localStorage with timestamp
+  localStorage.setItem(storageKey, JSON.stringify({
+    sessionId,
+    timestamp: Date.now()
+  }));
+  
+  console.log('[Analytics] Created new session:', sessionId);
+  
   const analytics = analyticsStore.get(documentId);
   
   if (analytics) {

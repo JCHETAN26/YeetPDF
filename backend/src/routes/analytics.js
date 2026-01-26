@@ -50,7 +50,7 @@ router.post('/event', (req, res) => {
     analyticsEvents.set(documentId, events);
     
     // Update aggregated page stats
-    updatePageStats(documentId, pageNumber, type, data);
+    updatePageStats(documentId, pageNumber, type, data, sessionId);
     
     res.json({ success: true });
   } catch (err) {
@@ -93,7 +93,7 @@ router.post('/batch', (req, res) => {
       events.push(event);
       analyticsEvents.set(documentId, events);
       
-      updatePageStats(documentId, pageNumber, type, data);
+      updatePageStats(documentId, pageNumber, type, data, sessionId);
       recorded++;
     }
     
@@ -155,7 +155,8 @@ router.get('/:documentId/heatmap', (req, res) => {
         leastViewedPage: findLeastViewedPage(pages)
       },
       pages,
-      funnel: calculateFunnel(documentId, doc.pageCount)
+      funnel: calculateFunnel(documentId, doc.pageCount),
+      viewsOverTime: calculateViewsOverTime(documentId)
     });
   } catch (err) {
     console.error('Heatmap error:', err);
@@ -215,14 +216,15 @@ function createEmptyPageStats() {
   };
 }
 
-function updatePageStats(documentId, pageNumber, type, data) {
+function updatePageStats(documentId, pageNumber, type, data, sessionId) {
   const stats = pageStats.get(documentId) || new Map();
   const pageData = stats.get(pageNumber) || createEmptyPageStats();
   
   if (type === 'page_view') {
     pageData.views++;
-    if (data.sessionId) {
-      pageData.uniqueSessions.add(data.sessionId);
+    // Track unique session for this page
+    if (sessionId) {
+      pageData.uniqueSessions.add(sessionId);
     }
   }
   
@@ -303,7 +305,17 @@ function calculateFunnel(documentId, pageCount) {
     }
   }
   
-  const total = sessionPages.size || 1;
+  // If no sessions, return empty funnel with 0 counts
+  if (sessionPages.size === 0) {
+    return [
+      { stage: 'Viewed Link', count: 0, percentage: 0 },
+      { stage: 'Opened Document', count: 0, percentage: 0 },
+      { stage: 'Read 50%+', count: 0, percentage: 0 },
+      { stage: 'Read 100%', count: 0, percentage: 0 }
+    ];
+  }
+  
+  const total = sessionPages.size;
   let opened = 0, half = 0, complete = 0;
   
   for (const [_, pages] of sessionPages) {
@@ -321,11 +333,55 @@ function calculateFunnel(documentId, pageCount) {
 }
 
 function findMostViewedPage(pages) {
+  if (!pages || pages.length === 0) return 1;
   return pages.reduce((max, p) => p.views > max.views ? p : max, pages[0])?.pageNumber || 1;
 }
 
 function findLeastViewedPage(pages) {
+  if (!pages || pages.length === 0) return 1;
   return pages.reduce((min, p) => p.views < min.views ? p : min, pages[0])?.pageNumber || 1;
+}
+
+function calculateViewsOverTime(documentId) {
+  const events = analyticsEvents.get(documentId) || [];
+  const dayMap = new Map();
+  
+  // Group events by day
+  for (const evt of events) {
+    const date = new Date(evt.timestamp).toISOString().split('T')[0];
+    if (!dayMap.has(date)) {
+      dayMap.set(date, { views: 0, sessions: new Set() });
+    }
+    const day = dayMap.get(date);
+    if (evt.type === 'page_view') {
+      day.views++;
+      day.sessions.add(evt.sessionId);
+    }
+  }
+  
+  // Convert to array and sort by date
+  const result = [];
+  for (const [date, data] of dayMap) {
+    result.push({
+      date,
+      views: data.views,
+      uniqueVisitors: data.sessions.size
+    });
+  }
+  
+  result.sort((a, b) => a.date.localeCompare(b.date));
+  
+  // Fill in last 7 days with zeros if needed
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const existing = result.find(r => r.date === dateStr);
+    last7Days.push(existing || { date: dateStr, views: 0, uniqueVisitors: 0 });
+  }
+  
+  return last7Days;
 }
 
 export { router as analyticsRouter };
