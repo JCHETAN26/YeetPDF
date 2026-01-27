@@ -11,23 +11,23 @@ import { cleanupExpiredDocuments } from './services/expiry.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// CORS configuration - allow multiple origins for development
+// Trust proxy for Railway/deployment platforms
+app.set('trust proxy', 1);
+
+// CORS configuration
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  'http://localhost:8080',
-  'http://localhost:5173',
-  'http://localhost:3000'
+  'https://yeet-pdf.vercel.app',
+  'http://localhost:8080'
 ].filter(Boolean);
 
-// Middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, origin);
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
     }
-    callback(null, allowedOrigins[0]); // Default to first origin
   },
   credentials: true
 }));
