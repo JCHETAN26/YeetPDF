@@ -6,8 +6,10 @@ import { getDocument } from '../store.js';
 
 const router = Router();
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const JWT_SECRET = process.env.JWT_SECRET || 'pdfshare-secret-change-in-production';
+
+console.log('[AUTH] GOOGLE_CLIENT_ID loaded:', GOOGLE_CLIENT_ID ? `${GOOGLE_CLIENT_ID.substring(0, 20)}...` : 'MISSING!');
 
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
