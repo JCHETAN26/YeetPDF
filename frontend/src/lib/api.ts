@@ -312,7 +312,12 @@ export async function getDocumentAnalytics(documentId: string): Promise<Document
   // Try backend first
   if (USE_BACKEND) {
     try {
-      const response = await fetch(`${API_BASE}/analytics/${documentId}/heatmap`);
+      const token = localStorage.getItem(TOKEN_KEY);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/analytics/${documentId}/heatmap`, { headers });
       if (!response.ok) return null;
       const result = await response.json();
       return {
