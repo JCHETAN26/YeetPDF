@@ -123,9 +123,11 @@ router.get('/:id/stream', async (req, res) => {
 router.get('/:id/info', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('[PDF] /info requested for:', id);
 
     const doc = await getDocument(id);
     if (!doc) {
+      console.log('[PDF] /info - document not found or expired:', id);
       return res.status(404).json({ error: 'Document not found or expired' });
     }
 
