@@ -1,10 +1,13 @@
 [build]
 builder = "NIXPACKS"
 
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["nodejs_22"]
+
 [build.nixpacksPlan.phases.install]
 cmds = ["npm install"]
 
-[build.nixpacksPlan.phases.build]
+[build.nixpacksPlan.phases.build]  
 cmds = ["npx prisma generate"]
 
 [deploy]
