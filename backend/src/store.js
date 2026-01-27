@@ -41,9 +41,21 @@ export async function getDocument(id) {
 
   if (!doc) return null;
 
-  // Check if expired
-  if (new Date() > new Date(doc.expiresAt)) {
-    await deleteDocument(id);
+  // Check if expired - but don't delete here, just return null
+  // Let the cron job handle actual deletion
+  const now = new Date();
+  const expiresAt = new Date(doc.expiresAt);
+
+  console.log('[STORE] getDocument:', {
+    id,
+    now: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    isExpired: now > expiresAt,
+    timeLeft: Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60) + ' minutes'
+  });
+
+  if (now > expiresAt) {
+    console.log('[STORE] Document expired:', id);
     return null;
   }
 
