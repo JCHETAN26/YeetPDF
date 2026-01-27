@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["cd backend && npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["npx prisma generate"]
+cmds = ["cd backend && npx prisma generate"]
 
 [start]
-cmd = "npm start"
+cmd = "cd backend && npm start"
