@@ -51,7 +51,7 @@ export function UserMenu() {
     );
   }
 
-  const initials = user.name
+  const initials = (user.name || user.email || 'User')
     .split(' ')
     .map((n) => n[0])
     .join('')
@@ -73,11 +73,11 @@ export function UserMenu() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <div className="flex items-center gap-2 p-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user.picture} alt={user.name} />
+            <AvatarImage src={user.picture || undefined} alt={user.name || user.email} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col space-y-1 leading-none">
-            <p className="font-medium">{user.name}</p>
+            <p className="font-medium">{user.name || 'User'}</p>
             <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
         </div>

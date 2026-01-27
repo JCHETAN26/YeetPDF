@@ -134,5 +134,8 @@ export async function getUserDocuments(userId) {
 
 // Re-export for backward compatibility (these are now handled by services/users.js)
 export { prisma as documents };
-export const analyticsEvents = null; // Handled by database
-export const pageStats = null; // Handled by database
+
+// Analytics still use in-memory storage (TODO: migrate to database later)
+export const analyticsEvents = new Map();
+export const pageStats = new Map();
+

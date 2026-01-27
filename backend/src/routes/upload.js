@@ -175,9 +175,12 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
       ownerId: req.user?.userId || null,
     });
 
-    // Link document to user if logged in
+    console.log('[UPLOAD] Document created:', { id, ownerId: doc.ownerId, hasUser: !!req.user });
+
+    // Link document to user if logged in (this is actually redundant now since we set ownerId above)
     if (req.user) {
       await linkDocumentToUser(req.user.userId, id);
+      console.log('[UPLOAD] Linked document to user:', req.user.userId);
     }
 
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;

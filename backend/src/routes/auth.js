@@ -18,7 +18,7 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 router.post('/google', async (req, res) => {
   try {
     const { credential } = req.body;
-    
+
     if (!credential) {
       return res.status(400).json({ error: 'Missing Google credential' });
     }
@@ -28,15 +28,15 @@ router.post('/google', async (req, res) => {
       idToken: credential,
       audience: GOOGLE_CLIENT_ID,
     });
-    
+
     const payload = ticket.getPayload();
-    
-    // Find or create user
-    const user = findOrCreateUser(payload);
-    
+
+    // Find or create user (await the database call!)
+    const user = await findOrCreateUser(payload);
+
     // Create session JWT
     const token = jwt.sign(
-      { 
+      {
         userId: user.id,
         email: user.email,
         name: user.name,
@@ -45,7 +45,9 @@ router.post('/google', async (req, res) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
-    
+
+    console.log('[AUTH] User logged in:', { email: user.email, name: user.name });
+
     res.json({
       success: true,
       token,
@@ -74,16 +76,25 @@ router.get('/me', authMiddleware, (req, res) => {
  * GET /api/auth/documents
  * Get all documents for current user
  */
-router.get('/documents', authMiddleware, (req, res) => {
-  const documentIds = getUserDocumentIds(req.user.userId);
-  
-  // Get document details
-  const documents = documentIds
-    .map(id => getDocument(id))
-    .filter(Boolean) // Remove expired/deleted
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  
-  res.json({ documents });
+router.get('/documents', authMiddleware, async (req, res) => {
+  try {
+    const documentIds = await getUserDocumentIds(req.user.userId);
+
+    // Get full document details
+    const documents = await Promise.all(
+      documentIds.map(id => getDocument(id))
+    );
+
+    // Filter out any null results (expired/deleted)
+    const validDocuments = documents
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({ documents: validDocuments });
+  } catch (error) {
+    console.error('[ERROR]', error.message);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
 });
 
 /**
@@ -91,13 +102,13 @@ router.get('/documents', authMiddleware, (req, res) => {
  */
 export function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
+
   const token = authHeader.substring(7);
-  
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -112,7 +123,7 @@ export function authMiddleware(req, res, next) {
  */
 export function optionalAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     try {
@@ -129,15 +140,15 @@ export function optionalAuthMiddleware(req, res, next) {
  */
 export function requireDocumentOwnership(req, res, next) {
   const { id } = req.params;
-  
+
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  
+
   if (!userOwnsDocument(req.user.userId, id)) {
     return res.status(403).json({ error: 'Access denied' });
   }
-  
+
   next();
 }
 
