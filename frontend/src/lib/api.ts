@@ -71,12 +71,12 @@ async function uploadPDFToBackend(
   }
 
   const formData = new FormData();
-  formData.append('file', file);
   formData.append('pageCount', pageCount.toString());
   if (customSlug) {
     formData.append('customSlug', customSlug);
     console.log('[API] Added customSlug to FormData:', customSlug);
   }
+  formData.append('file', file);
 
   onProgress?.({ phase: 'uploading', progress: 30, message: 'Uploading...' });
 
