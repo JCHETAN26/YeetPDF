@@ -18,8 +18,10 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
   const [totalPages, setTotalPages] = useState(0);
   const [scale, setScale] = useState(1.5);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const annotationLayerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const pageEnteredAtRef = useRef<Date>(new Date());
   const currentPageRef = useRef(1);
 
@@ -43,24 +45,113 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
     loadPdf();
   }, [pdfUrl]);
 
-  // Render current page
+  // Render current page with annotations (clickable links)
   useEffect(() => {
-    if (!pdf || !canvasRef.current) return;
+    if (!pdf || !canvasRef.current || !annotationLayerRef.current) return;
 
     const renderPage = async () => {
       const page = await pdf.getPage(currentPage);
       const viewport = page.getViewport({ scale });
-      
+
       const canvas = canvasRef.current!;
       const context = canvas.getContext('2d')!;
-      
+      const annotationLayer = annotationLayerRef.current!;
+
       canvas.height = viewport.height;
       canvas.width = viewport.width;
-      
+
+      // Set container size to match canvas
+      if (containerRef.current) {
+        containerRef.current.style.width = `${viewport.width}px`;
+        containerRef.current.style.height = `${viewport.height}px`;
+      }
+
+      // Render canvas
       await page.render({
         canvasContext: context,
         viewport: viewport,
       }).promise;
+
+      // Clear previous annotations
+      annotationLayer.innerHTML = '';
+      annotationLayer.style.width = `${viewport.width}px`;
+      annotationLayer.style.height = `${viewport.height}px`;
+
+      // Get and render annotations (links)
+      const annotations = await page.getAnnotations();
+
+      annotations.forEach((annotation: any) => {
+        if (annotation.subtype === 'Link' && annotation.url) {
+          // Calculate position
+          const rect = annotation.rect;
+          const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
+
+          const left = Math.min(x1, x2);
+          const top = Math.min(y1, y2);
+          const width = Math.abs(x2 - x1);
+          const height = Math.abs(y2 - y1);
+
+          // Create clickable link element
+          const link = document.createElement('a');
+          link.href = annotation.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.style.position = 'absolute';
+          link.style.left = `${left}px`;
+          link.style.top = `${top}px`;
+          link.style.width = `${width}px`;
+          link.style.height = `${height}px`;
+          link.style.cursor = 'pointer';
+          // Subtle hover effect
+          link.style.backgroundColor = 'transparent';
+          link.style.transition = 'background-color 0.2s';
+          link.onmouseenter = () => { link.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; };
+          link.onmouseleave = () => { link.style.backgroundColor = 'transparent'; };
+
+          annotationLayer.appendChild(link);
+        }
+
+        // Handle internal links (go to page)
+        if (annotation.subtype === 'Link' && annotation.dest) {
+          const rect = annotation.rect;
+          const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
+
+          const left = Math.min(x1, x2);
+          const top = Math.min(y1, y2);
+          const width = Math.abs(x2 - x1);
+          const height = Math.abs(y2 - y1);
+
+          const link = document.createElement('div');
+          link.style.position = 'absolute';
+          link.style.left = `${left}px`;
+          link.style.top = `${top}px`;
+          link.style.width = `${width}px`;
+          link.style.height = `${height}px`;
+          link.style.cursor = 'pointer';
+          link.style.backgroundColor = 'transparent';
+          link.style.transition = 'background-color 0.2s';
+          link.onmouseenter = () => { link.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; };
+          link.onmouseleave = () => { link.style.backgroundColor = 'transparent'; };
+
+          link.onclick = async () => {
+            try {
+              // Resolve the destination to get the page number
+              const dest = typeof annotation.dest === 'string'
+                ? await pdf.getDestination(annotation.dest)
+                : annotation.dest;
+
+              if (dest) {
+                const pageIndex = await pdf.getPageIndex(dest[0]);
+                setCurrentPage(pageIndex + 1);
+              }
+            } catch (e) {
+              console.log('[PDFRenderer] Could not resolve internal link:', e);
+            }
+          };
+
+          annotationLayer.appendChild(link);
+        }
+      });
     };
 
     renderPage();
@@ -117,11 +208,11 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          
+
           <span className="text-white text-sm px-4">
             Page {currentPage} of {totalPages}
           </span>
-          
+
           <Button
             variant="ghost"
             size="sm"
@@ -143,11 +234,11 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
           >
             <ZoomOut className="w-4 h-4" />
           </Button>
-          
+
           <span className="text-white text-sm px-2">
             {Math.round(scale * 100)}%
           </span>
-          
+
           <Button
             variant="ghost"
             size="sm"
@@ -160,9 +251,17 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
         </div>
       </div>
 
-      {/* PDF Canvas */}
+      {/* PDF Canvas with Annotation Layer */}
       <div className="flex-1 overflow-auto bg-neutral-900 flex items-start justify-center p-8 relative z-10">
-        <canvas ref={canvasRef} className="shadow-2xl" />
+        <div ref={containerRef} className="relative shadow-2xl">
+          <canvas ref={canvasRef} />
+          {/* Annotation layer overlays the canvas for clickable links */}
+          <div
+            ref={annotationLayerRef}
+            className="absolute top-0 left-0 pointer-events-auto"
+            style={{ zIndex: 1 }}
+          />
+        </div>
       </div>
     </div>
   );
