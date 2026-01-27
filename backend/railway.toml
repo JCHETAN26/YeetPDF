@@ -1,0 +1,12 @@
+[build]
+builder = "NIXPACKS"
+
+[build.nixpacksPlan.phases.install]
+cmds = ["npm install"]
+
+[build.nixpacksPlan.phases.build]
+cmds = ["npx prisma generate"]
+
+[deploy]
+startCommand = "npm start"
+numReplicas = 1
