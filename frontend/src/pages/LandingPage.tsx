@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Upload, 
-  FileText, 
-  AlertCircle, 
-  Zap, 
-  Eye, 
-  Shield, 
-  Clock, 
+import {
+  Upload,
+  FileText,
+  AlertCircle,
+  Zap,
+  Eye,
+  Shield,
+  Clock,
   BarChart3,
   Users,
   Star,
@@ -40,30 +40,52 @@ const LandingPage = () => {
     e.preventDefault();
     setIsDragging(false);
     setError(null);
-    
+
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      if (files[0].type === "application/pdf") {
-        setSelectedFile(files[0]);
-        setShowUploadDialog(true);
-      } else {
+      const file = files[0];
+
+      // Validate file type
+      if (file.type !== "application/pdf") {
         setError("Please upload a PDF file");
+        return;
       }
+
+      // Validate file size (50MB = 52428800 bytes)
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setError(`File size exceeds 50MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+        return;
+      }
+
+      setSelectedFile(file);
+      setShowUploadDialog(true);
     }
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     const files = e.target.files;
     if (files && files.length > 0) {
-      if (files[0].type === "application/pdf") {
-        setSelectedFile(files[0]);
-        setShowUploadDialog(true);
-      } else {
+      const file = files[0];
+
+      // Validate file type
+      if (file.type !== "application/pdf") {
         setError("Please upload a PDF file");
+        return;
       }
+
+      // Validate file size (50MB = 52428800 bytes)
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setError(`File size exceeds 50MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+        return;
+      }
+
+      setSelectedFile(file);
+      setShowUploadDialog(true);
     }
-  };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -105,14 +127,14 @@ const LandingPage = () => {
               <br />
               <span className="text-primary">Track every view.</span>
             </h1>
-            
+
             <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: "0.1s" }}>
-              The fastest way to share documents online. Drop a PDF, get a link, 
+              The fastest way to share documents online. Drop a PDF, get a link,
               see who reads what. No signup required.
             </p>
 
             {/* Upload Zone */}
-            <div 
+            <div
               className={`upload-zone p-10 sm:p-14 max-w-xl mx-auto animate-slide-up ${isDragging ? "active" : ""} ${error ? "border-destructive" : ""}`}
               style={{ animationDelay: "0.2s" }}
               onDragOver={handleDragOver}
@@ -125,19 +147,18 @@ const LandingPage = () => {
                 onChange={handleFileSelect}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              
+
               <div className="flex flex-col items-center gap-5">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                  error ? "bg-destructive/10" : 
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${error ? "bg-destructive/10" :
                   isDragging ? "scale-110 bg-primary/10" : "bg-accent"
-                }`}>
+                  }`}>
                   {error ? (
                     <AlertCircle className="w-7 h-7 text-destructive" />
                   ) : (
                     <Upload className={`w-7 h-7 transition-colors duration-300 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                   )}
                 </div>
-                
+
                 <div className="space-y-2 text-center">
                   {error ? (
                     <>
@@ -164,9 +185,9 @@ const LandingPage = () => {
                 )}
 
                 {error && (
-                  <Button 
-                    variant="outline" 
-                    size="lg" 
+                  <Button
+                    variant="outline"
+                    size="lg"
                     className="mt-2"
                     onClick={() => setError(null)}
                   >
@@ -357,9 +378,9 @@ const LandingPage = () => {
             </div>
 
             <div className="text-center mt-12">
-              <Button 
-                variant="premium" 
-                size="lg" 
+              <Button
+                variant="premium"
+                size="lg"
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               >
                 Start Sharing Now
@@ -419,7 +440,7 @@ const LandingPage = () => {
               ))}
             </div>
             <blockquote className="text-2xl md:text-3xl font-medium text-foreground mb-6 text-balance">
-              "Finally, a PDF sharing tool that tells me if my proposal was actually read. 
+              "Finally, a PDF sharing tool that tells me if my proposal was actually read.
               The heatmap feature is a game-changer for our sales team."
             </blockquote>
             <div className="text-muted-foreground">
@@ -439,9 +460,9 @@ const LandingPage = () => {
             <p className="text-lg text-muted-foreground mb-8">
               Upload your first PDF and see the analytics in action. It's free.
             </p>
-            <Button 
-              variant="premium" 
-              size="lg" 
+            <Button
+              variant="premium"
+              size="lg"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
               <Upload className="w-5 h-5 mr-2" />
@@ -478,7 +499,7 @@ const LandingPage = () => {
                 The fastest way to share PDFs with built-in analytics.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-foreground mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -488,7 +509,7 @@ const LandingPage = () => {
                 <li><a href="#" className="hover:text-foreground transition-colors">API</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-foreground mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -498,7 +519,7 @@ const LandingPage = () => {
                 <li><a href="#" className="hover:text-foreground transition-colors">Contact</a></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-semibold text-foreground mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
@@ -509,7 +530,7 @@ const LandingPage = () => {
               </ul>
             </div>
           </div>
-          
+
           <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
               © 2025 PDFShare. All rights reserved.
@@ -524,10 +545,10 @@ const LandingPage = () => {
       </footer>
 
       {/* Upload Dialog */}
-      <UploadDialog 
-        open={showUploadDialog} 
-        onOpenChange={setShowUploadDialog} 
-        file={selectedFile} 
+      <UploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+        file={selectedFile}
       />
     </div>
   );

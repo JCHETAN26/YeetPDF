@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { getDocument, analyticsEvents, pageStats } from '../store.js';
 
 const router = Router();
@@ -117,6 +118,34 @@ router.get('/:documentId/heatmap', async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    // Check if document has an owner (requires login to view analytics)
+    if (doc.ownerId) {
+      // Extract token from Authorization header
+      const token = req.headers.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        return res.status(401).json({
+          error: 'Analytics for this document require authentication',
+          message: 'Please log in to view analytics for your documents'
+        });
+      }
+
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+
+        // Check if user owns this document
+        if (decoded.userId !== doc.ownerId) {
+          return res.status(403).json({
+            error: 'Access denied',
+            message: 'You can only view analytics for your own documents'
+          });
+        }
+      } catch (err) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+    }
+    // Anonymous uploads (no ownerId) = anyone can view analytics
+
     const stats = pageStats.get(documentId) || new Map();
     const pages = [];
 
@@ -175,6 +204,27 @@ router.get('/:documentId/summary', async (req, res) => {
     const doc = await getDocument(documentId);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Check ownership (same logic as heatmap)
+    if (doc.ownerId) {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+
+      if (!token) {
+        return res.status(401).json({
+          error: 'Analytics require authentication',
+          message: 'Please log in to view analytics'
+        });
+      }
+
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        if (decoded.userId !== doc.ownerId) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      } catch (err) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
     }
 
     const stats = pageStats.get(documentId) || new Map();
