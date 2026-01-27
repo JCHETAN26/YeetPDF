@@ -15,23 +15,23 @@ const router = Router();
  *   data: { timeSpent?, scrollDepth?, ... }
  * }
  */
-router.post('/event', (req, res) => {
+router.post('/event', async (req, res) => {
   try {
     const { documentId, sessionId, type, pageNumber, data = {} } = req.body;
-    
+
     // Validate required fields
     if (!documentId || !sessionId || !type || !pageNumber) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: documentId, sessionId, type, pageNumber' 
+      return res.status(400).json({
+        error: 'Missing required fields: documentId, sessionId, type, pageNumber'
       });
     }
-    
+
     // Check document exists
-    const doc = getDocument(documentId);
+    const doc = await getDocument(documentId);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
-    
+
     // Create event
     const event = {
       documentId,
@@ -43,15 +43,15 @@ router.post('/event', (req, res) => {
       userAgent: req.headers['user-agent'],
       ip: req.ip
     };
-    
+
     // Store event
     const events = analyticsEvents.get(documentId) || [];
     events.push(event);
     analyticsEvents.set(documentId, events);
-    
+
     // Update aggregated page stats
     updatePageStats(documentId, pageNumber, type, data, sessionId);
-    
+
     res.json({ success: true });
   } catch (err) {
     console.error('Analytics event error:', err);
@@ -63,23 +63,23 @@ router.post('/event', (req, res) => {
  * POST /api/analytics/batch
  * Collect multiple events at once (for efficiency)
  */
-router.post('/batch', (req, res) => {
+router.post('/batch', async (req, res) => {
   try {
     const { events: eventList } = req.body;
-    
+
     if (!Array.isArray(eventList)) {
       return res.status(400).json({ error: 'events must be an array' });
     }
-    
+
     let recorded = 0;
     for (const evt of eventList) {
       const { documentId, sessionId, type, pageNumber, data = {} } = evt;
-      
+
       if (!documentId || !sessionId || !type || !pageNumber) continue;
-      
-      const doc = getDocument(documentId);
+
+      const doc = await getDocument(documentId);
       if (!doc) continue;
-      
+
       const event = {
         documentId,
         sessionId,
@@ -88,15 +88,15 @@ router.post('/batch', (req, res) => {
         data,
         timestamp: new Date().toISOString()
       };
-      
+
       const events = analyticsEvents.get(documentId) || [];
       events.push(event);
       analyticsEvents.set(documentId, events);
-      
+
       updatePageStats(documentId, pageNumber, type, data, sessionId);
       recorded++;
     }
-    
+
     res.json({ success: true, recorded });
   } catch (err) {
     console.error('Batch analytics error:', err);
@@ -108,18 +108,18 @@ router.post('/batch', (req, res) => {
  * GET /api/analytics/:documentId/heatmap
  * Get aggregated heatmap data for a document
  */
-router.get('/:documentId/heatmap', (req, res) => {
+router.get('/:documentId/heatmap', async (req, res) => {
   try {
     const { documentId } = req.params;
-    
-    const doc = getDocument(documentId);
+
+    const doc = await getDocument(documentId);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
-    
+
     const stats = pageStats.get(documentId) || new Map();
     const pages = [];
-    
+
     // Build page-by-page heatmap data
     for (let i = 1; i <= doc.pageCount; i++) {
       const pageData = stats.get(i) || createEmptyPageStats();
@@ -133,7 +133,7 @@ router.get('/:documentId/heatmap', (req, res) => {
         engagementScore: calculateEngagementScore(pageData)
       });
     }
-    
+
     // Calculate overall stats
     const totalViews = pages.reduce((sum, p) => sum + p.views, 0);
     const allSessions = new Set();
@@ -142,7 +142,7 @@ router.get('/:documentId/heatmap', (req, res) => {
         allSessions.add(sid);
       }
     }
-    
+
     res.json({
       success: true,
       documentId,
@@ -168,27 +168,27 @@ router.get('/:documentId/heatmap', (req, res) => {
  * GET /api/analytics/:documentId/summary
  * Get quick summary stats
  */
-router.get('/:documentId/summary', (req, res) => {
+router.get('/:documentId/summary', async (req, res) => {
   try {
     const { documentId } = req.params;
-    
-    const doc = getDocument(documentId);
+
+    const doc = await getDocument(documentId);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
-    
+
     const stats = pageStats.get(documentId) || new Map();
-    
+
     let totalViews = 0;
     const allSessions = new Set();
-    
+
     for (const [_, data] of stats) {
       totalViews += data.views;
       for (const sid of data.uniqueSessions) {
         allSessions.add(sid);
       }
     }
-    
+
     res.json({
       success: true,
       summary: {
@@ -219,7 +219,7 @@ function createEmptyPageStats() {
 function updatePageStats(documentId, pageNumber, type, data, sessionId) {
   const stats = pageStats.get(documentId) || new Map();
   const pageData = stats.get(pageNumber) || createEmptyPageStats();
-  
+
   if (type === 'page_view') {
     pageData.views++;
     // Track unique session for this page
@@ -227,15 +227,15 @@ function updatePageStats(documentId, pageNumber, type, data, sessionId) {
       pageData.uniqueSessions.add(sessionId);
     }
   }
-  
+
   if (type === 'page_exit' && data.timeSpent) {
     pageData.totalTimeSpent += data.timeSpent;
   }
-  
+
   if (data.scrollDepth) {
     pageData.maxScrollDepth = Math.max(pageData.maxScrollDepth, data.scrollDepth);
   }
-  
+
   stats.set(pageNumber, pageData);
   pageStats.set(documentId, stats);
 }
@@ -245,14 +245,14 @@ function calculateEngagementScore(pageData) {
   const viewWeight = Math.min(pageData.views / 50, 1) * 30;
   const timeWeight = Math.min((pageData.totalTimeSpent / pageData.views || 0) / 60, 1) * 40;
   const scrollWeight = (pageData.maxScrollDepth / 100) * 30;
-  
+
   return Math.round(Math.min(100, viewWeight + timeWeight + scrollWeight));
 }
 
 function calculateAvgSessionTime(documentId) {
   const events = analyticsEvents.get(documentId) || [];
   const sessions = new Map();
-  
+
   for (const evt of events) {
     if (!sessions.has(evt.sessionId)) {
       sessions.set(evt.sessionId, { start: evt.timestamp, end: evt.timestamp });
@@ -262,19 +262,19 @@ function calculateAvgSessionTime(documentId) {
       if (evt.timestamp > s.end) s.end = evt.timestamp;
     }
   }
-  
+
   let totalTime = 0;
   for (const [_, s] of sessions) {
     totalTime += (new Date(s.end) - new Date(s.start)) / 1000;
   }
-  
+
   return sessions.size > 0 ? Math.round(totalTime / sessions.size) : 0;
 }
 
 function calculateCompletionRate(documentId, pageCount) {
   const events = analyticsEvents.get(documentId) || [];
   const sessionPages = new Map();
-  
+
   for (const evt of events) {
     if (evt.type === 'page_view') {
       if (!sessionPages.has(evt.sessionId)) {
@@ -283,19 +283,19 @@ function calculateCompletionRate(documentId, pageCount) {
       sessionPages.get(evt.sessionId).add(evt.pageNumber);
     }
   }
-  
+
   let completed = 0;
   for (const [_, pages] of sessionPages) {
     if (pages.size >= pageCount) completed++;
   }
-  
+
   return sessionPages.size > 0 ? Math.round((completed / sessionPages.size) * 100) : 0;
 }
 
 function calculateFunnel(documentId, pageCount) {
   const events = analyticsEvents.get(documentId) || [];
   const sessionPages = new Map();
-  
+
   for (const evt of events) {
     if (evt.type === 'page_view') {
       if (!sessionPages.has(evt.sessionId)) {
@@ -304,7 +304,7 @@ function calculateFunnel(documentId, pageCount) {
       sessionPages.get(evt.sessionId).add(evt.pageNumber);
     }
   }
-  
+
   // If no sessions, return empty funnel with 0 counts
   if (sessionPages.size === 0) {
     return [
@@ -314,16 +314,16 @@ function calculateFunnel(documentId, pageCount) {
       { stage: 'Read 100%', count: 0, percentage: 0 }
     ];
   }
-  
+
   const total = sessionPages.size;
   let opened = 0, half = 0, complete = 0;
-  
+
   for (const [_, pages] of sessionPages) {
     if (pages.size > 0) opened++;
     if (pages.size >= Math.ceil(pageCount / 2)) half++;
     if (pages.size >= pageCount) complete++;
   }
-  
+
   return [
     { stage: 'Viewed Link', count: total, percentage: 100 },
     { stage: 'Opened Document', count: opened, percentage: Math.round((opened / total) * 100) },
@@ -345,7 +345,7 @@ function findLeastViewedPage(pages) {
 function calculateViewsOverTime(documentId) {
   const events = analyticsEvents.get(documentId) || [];
   const dayMap = new Map();
-  
+
   // Group events by day
   for (const evt of events) {
     const date = new Date(evt.timestamp).toISOString().split('T')[0];
@@ -358,7 +358,7 @@ function calculateViewsOverTime(documentId) {
       day.sessions.add(evt.sessionId);
     }
   }
-  
+
   // Convert to array and sort by date
   const result = [];
   for (const [date, data] of dayMap) {
@@ -368,9 +368,9 @@ function calculateViewsOverTime(documentId) {
       uniqueVisitors: data.sessions.size
     });
   }
-  
+
   result.sort((a, b) => a.date.localeCompare(b.date));
-  
+
   // Fill in last 7 days with zeros if needed
   const last7Days = [];
   for (let i = 6; i >= 0; i--) {
@@ -380,7 +380,7 @@ function calculateViewsOverTime(documentId) {
     const existing = result.find(r => r.date === dateStr);
     last7Days.push(existing || { date: dateStr, views: 0, uniqueVisitors: 0 });
   }
-  
+
   return last7Days;
 }
 

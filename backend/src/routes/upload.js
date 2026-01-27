@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { generateId, createDocument, pdfData, documents } from '../store.js';
-import { 
-  isS3Configured, 
-  getPresignedUploadUrl, 
-  uploadPDFToS3, 
-  getS3Key 
+import { generateId, createDocument, updateDocument, getDocument, pdfData } from '../store.js';
+import {
+  isS3Configured,
+  getPresignedUploadUrl,
+  uploadPDFToS3,
+  getS3Key
 } from '../services/s3.js';
 import { optionalAuthMiddleware } from './auth.js';
 import { linkDocumentToUser } from '../services/users.js';
@@ -33,19 +33,19 @@ const upload = multer({
 router.post('/request', async (req, res) => {
   try {
     const { fileName, contentType = 'application/pdf' } = req.body;
-    
+
     if (!fileName) {
       return res.status(400).json({ error: 'fileName is required' });
     }
-    
+
     const id = await generateId();
-    
+
     // If S3 is configured, return presigned URL for direct upload
     if (isS3Configured()) {
       const { uploadUrl, key } = await getPresignedUploadUrl(id, fileName, contentType);
-      
+
       // Create document record (will be finalized after upload confirmation)
-      createDocument(id, {
+      await createDocument(id, {
         fileName,
         fileSize: 0, // Will be updated after upload
         mimeType: contentType,
@@ -53,7 +53,7 @@ router.post('/request', async (req, res) => {
         s3Key: key,
         uploadPending: true,
       });
-      
+
       return res.json({
         success: true,
         documentId: id,
@@ -64,7 +64,7 @@ router.post('/request', async (req, res) => {
         maxSize: 50 * 1024 * 1024
       });
     }
-    
+
     // Fallback: return our upload endpoint
     res.json({
       success: true,
@@ -88,25 +88,27 @@ router.post('/confirm/:id', optionalAuthMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { fileSize, pageCount } = req.body;
-    
-    const doc = documents.get(id);
+
+    const doc = await getDocument(id);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found' });
     }
-    
+
     // Update document with actual file info
-    doc.fileSize = fileSize || doc.fileSize;
-    doc.pageCount = pageCount || Math.max(1, Math.floor((fileSize || 0) / 50000));
-    doc.uploadPending = false;
-    
+    await updateDocument(id, {
+      fileSize: fileSize || doc.fileSize,
+      pageCount: pageCount || Math.max(1, Math.floor((fileSize || 0) / 50000)),
+      uploadPending: false,
+      ownerId: req.user?.userId || doc.ownerId
+    });
+
     // Link document to user if logged in
     if (req.user) {
-      doc.ownerId = req.user.userId;
-      linkDocumentToUser(req.user.userId, id);
+      await linkDocumentToUser(req.user.userId, id);
     }
-    
+
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    
+
     res.json({
       success: true,
       document: {
@@ -131,7 +133,7 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
   try {
     const file = req.file;
     const { customSlug, pageCount } = req.body;
-    
+
     console.log('[UPLOAD] Direct upload request:', {
       fileName: file?.originalname,
       fileSize: file?.size,
@@ -139,16 +141,16 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
       pageCount,
       hasAuth: !!req.user
     });
-    
+
     if (!file) {
       return res.status(400).json({ error: 'No file provided' });
     }
-    
+
     const id = await generateId(10, customSlug);
     console.log('[UPLOAD] Generated ID:', id, 'from customSlug:', customSlug);
-    
+
     let s3Key = null;
-    
+
     // Upload to S3 if configured
     if (isS3Configured()) {
       const result = await uploadPDFToS3(id, file.originalname, file.buffer);
@@ -157,14 +159,14 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
       // Store in memory (demo mode)
       pdfData.set(id, file.buffer);
     }
-    
+
     // Use provided page count or estimate from file size
     const actualPageCount = pageCount ? parseInt(pageCount, 10) : Math.max(1, Math.floor(file.size / 50000));
-    
+
     console.log('[UPLOAD] Page count:', actualPageCount, '(provided:', pageCount, ')');
-    
+
     // Create document record
-    const doc = createDocument(id, {
+    const doc = await createDocument(id, {
       fileName: file.originalname,
       fileSize: file.size,
       mimeType: file.mimetype,
@@ -172,15 +174,15 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
       s3Key,
       ownerId: req.user?.userId || null,
     });
-    
+
     // Link document to user if logged in
     if (req.user) {
-      linkDocumentToUser(req.user.userId, id);
+      await linkDocumentToUser(req.user.userId, id);
     }
-    
+
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    
+
     const responseDoc = {
       success: true,
       document: {
@@ -191,13 +193,13 @@ router.post('/direct', optionalAuthMiddleware, upload.single('file'), async (req
         pdfUrl: `${baseUrl}/api/pdf/${id}`
       }
     };
-    
+
     console.log('[UPLOAD] Response:', {
       id,
       shareUrl: responseDoc.document.shareUrl,
       viewerUrl: responseDoc.document.viewerUrl
     });
-    
+
     res.json(responseDoc);
   } catch (err) {
     console.error('Direct upload error:', err);
@@ -214,13 +216,13 @@ router.post('/:id', upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
     const file = req.file;
-    
+
     if (!file) {
       return res.status(400).json({ error: 'No file provided' });
     }
-    
+
     let s3Key = null;
-    
+
     // Upload to S3 if configured
     if (isS3Configured()) {
       const result = await uploadPDFToS3(id, file.originalname, file.buffer);
@@ -229,22 +231,22 @@ router.post('/:id', upload.single('file'), async (req, res) => {
       // Store in memory (demo mode)
       pdfData.set(id, file.buffer);
     }
-    
+
     // Estimate page count from file size
     const estimatedPages = Math.max(1, Math.floor(file.size / 50000));
-    
+
     // Create document record
-    const doc = createDocument(id, {
+    const doc = await createDocument(id, {
       fileName: file.originalname,
       fileSize: file.size,
       mimeType: file.mimetype,
       pageCount: estimatedPages,
       s3Key,
     });
-    
+
     const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    
+
     res.json({
       success: true,
       document: {

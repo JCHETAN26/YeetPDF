@@ -1,34 +1,32 @@
 /**
- * In-memory document store
- * Replace with Redis/PostgreSQL for production
+ * Database-backed document store using Prisma
+ * Replaces in-memory Maps with PostgreSQL persistence
  */
 
-// Documents: { id -> { metadata, expiresAt } }
-export const documents = new Map();
+import prisma from './db.js';
 
-// PDF binary data: { id -> Buffer }
+// Keep pdfData Map for binary storage (use S3 for production)
+// PDFs are handled by S3, this is just a fallback
 export const pdfData = new Map();
-
-// Analytics events: { documentId -> [events] }
-export const analyticsEvents = new Map();
-
-// Aggregated page stats: { documentId -> { pageNumber -> stats } }
-export const pageStats = new Map();
 
 /**
  * Generate a short, URL-safe ID
  */
 export async function generateId(length = 10, customSlug = null) {
   if (customSlug) {
-    // Check if slug is already taken
-    if (documents.has(customSlug)) {
+    // Check if slug is already taken in database
+    const existing = await prisma.document.findUnique({
+      where: { id: customSlug }
+    });
+
+    if (existing) {
       // Append random suffix to make it unique
       const { nanoid } = await import('nanoid');
       return `${customSlug}-${nanoid(4)}`;
     }
     return customSlug;
   }
-  
+
   const { nanoid } = await import('nanoid');
   return nanoid(length);
 }
@@ -36,62 +34,105 @@ export async function generateId(length = 10, customSlug = null) {
 /**
  * Get document by ID
  */
-export function getDocument(id) {
-  const doc = documents.get(id);
+export async function getDocument(id) {
+  const doc = await prisma.document.findUnique({
+    where: { id }
+  });
+
   if (!doc) return null;
-  
+
   // Check if expired
   if (new Date() > new Date(doc.expiresAt)) {
-    deleteDocument(id);
+    await deleteDocument(id);
     return null;
   }
-  
+
   return doc;
 }
 
 /**
  * Create a new document record
  */
-export function createDocument(id, metadata) {
+export async function createDocument(id, metadata) {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
-  
-  const doc = {
-    id,
-    ...metadata,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-  };
-  
-  documents.set(id, doc);
-  analyticsEvents.set(id, []);
-  pageStats.set(id, new Map());
-  
+  const expiryDays = parseInt(process.env.DOCUMENT_EXPIRY_DAYS || '7', 10);
+  const expiresAt = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000);
+
+  const doc = await prisma.document.create({
+    data: {
+      id,
+      fileName: metadata.fileName,
+      fileSize: metadata.fileSize,
+      mimeType: metadata.mimeType || 'application/pdf',
+      pageCount: metadata.pageCount,
+      s3Key: metadata.s3Key || null,
+      uploadPending: metadata.uploadPending || false,
+      ownerId: metadata.ownerId || null,
+      expiresAt,
+    }
+  });
+
   return doc;
+}
+
+/**
+ * Update existing document
+ */
+export async function updateDocument(id, updates) {
+  return await prisma.document.update({
+    where: { id },
+    data: updates
+  });
 }
 
 /**
  * Delete document and all associated data
  */
-export function deleteDocument(id) {
-  documents.delete(id);
+export async function deleteDocument(id) {
+  // Cascade delete will handle analytics_events and page_stats
+  await prisma.document.delete({
+    where: { id }
+  });
+
+  // Clean up PDF binary if stored locally
   pdfData.delete(id);
-  analyticsEvents.delete(id);
-  pageStats.delete(id);
 }
 
 /**
  * Get all expired document IDs
  */
-export function getExpiredDocumentIds() {
+export async function getExpiredDocumentIds() {
   const now = new Date();
-  const expired = [];
-  
-  for (const [id, doc] of documents) {
-    if (new Date(doc.expiresAt) < now) {
-      expired.push(id);
+
+  const expiredDocs = await prisma.document.findMany({
+    where: {
+      expiresAt: {
+        lt: now
+      }
+    },
+    select: {
+      id: true
     }
-  }
-  
-  return expired;
+  });
+
+  return expiredDocs.map(doc => doc.id);
 }
+
+/**
+ * Get all documents for a user
+ */
+export async function getUserDocuments(userId) {
+  return await prisma.document.findMany({
+    where: {
+      ownerId: userId
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+}
+
+// Re-export for backward compatibility (these are now handled by services/users.js)
+export { prisma as documents };
+export const analyticsEvents = null; // Handled by database
+export const pageStats = null; // Handled by database

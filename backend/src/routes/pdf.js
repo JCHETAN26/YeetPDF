@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { getDocument, pdfData } from '../store.js';
-import { 
-  isS3Configured, 
-  getPresignedDownloadUrl, 
+import {
+  isS3Configured,
+  getPresignedDownloadUrl,
   getPDFStream,
-  checkPDFExists 
+  checkPDFExists
 } from '../services/s3.js';
 
 const router = Router();
@@ -18,42 +18,42 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { download } = req.query; // ?download=true for attachment
-    
+
     // Get document metadata
-    const doc = getDocument(id);
+    const doc = await getDocument(id);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found or expired' });
     }
-    
+
     // If S3 is configured and document has S3 key, redirect to presigned URL
     if (isS3Configured() && doc.s3Key) {
       const presignedUrl = await getPresignedDownloadUrl(
-        doc.s3Key, 
-        doc.fileName, 
+        doc.s3Key,
+        doc.fileName,
         download !== 'true' // inline unless download=true
       );
       return res.redirect(presignedUrl);
     }
-    
+
     // Fallback: serve from memory
     const data = pdfData.get(id);
     if (!data) {
       return res.status(404).json({ error: 'PDF data not found' });
     }
-    
+
     // Set headers for efficient PDF serving
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', data.length);
-    res.setHeader('Content-Disposition', 
-      download === 'true' 
-        ? `attachment; filename="${doc.fileName}"` 
+    res.setHeader('Content-Disposition',
+      download === 'true'
+        ? `attachment; filename="${doc.fileName}"`
         : `inline; filename="${doc.fileName}"`
     );
-    
+
     // Cache headers
     res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
     res.setHeader('ETag', `"${id}-${doc.fileSize}"`);
-    
+
     // Support range requests for PDF.js
     const range = req.headers.range;
     if (range) {
@@ -61,12 +61,12 @@ router.get('/:id', async (req, res) => {
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : data.length - 1;
       const chunkSize = end - start + 1;
-      
+
       res.status(206);
       res.setHeader('Content-Range', `bytes ${start}-${end}/${data.length}`);
       res.setHeader('Content-Length', chunkSize);
       res.setHeader('Accept-Ranges', 'bytes');
-      
+
       res.send(data.subarray(start, end + 1));
     } else {
       res.setHeader('Accept-Ranges', 'bytes');
@@ -85,19 +85,19 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/stream', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const doc = getDocument(id);
+
+    const doc = await getDocument(id);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found or expired' });
     }
-    
+
     if (isS3Configured() && doc.s3Key) {
       const { stream, contentLength, contentType } = await getPDFStream(doc.s3Key);
-      
+
       res.setHeader('Content-Type', contentType || 'application/pdf');
       res.setHeader('Content-Length', contentLength);
       res.setHeader('Content-Disposition', `inline; filename="${doc.fileName}"`);
-      
+
       stream.pipe(res);
     } else {
       // Fallback to memory
@@ -105,7 +105,7 @@ router.get('/:id/stream', async (req, res) => {
       if (!data) {
         return res.status(404).json({ error: 'PDF data not found' });
       }
-      
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Length', data.length);
       res.send(data);
@@ -120,15 +120,15 @@ router.get('/:id/stream', async (req, res) => {
  * GET /api/pdf/:id/info
  * Get document metadata without downloading the file
  */
-router.get('/:id/info', (req, res) => {
+router.get('/:id/info', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const doc = getDocument(id);
+
+    const doc = await getDocument(id);
     if (!doc) {
       return res.status(404).json({ error: 'Document not found or expired' });
     }
-    
+
     res.json({
       success: true,
       document: {
@@ -149,14 +149,14 @@ router.get('/:id/info', (req, res) => {
  * HEAD /api/pdf/:id
  * Check if document exists without downloading
  */
-router.head('/:id', (req, res) => {
+router.head('/:id', async (req, res) => {
   const { id } = req.params;
-  const doc = getDocument(id);
-  
+  const doc = await getDocument(id);
+
   if (!doc) {
     return res.status(404).end();
   }
-  
+
   const data = pdfData.get(id);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Length', data?.length || 0);

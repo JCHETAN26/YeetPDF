@@ -1,81 +1,97 @@
 /**
- * User store - in-memory for demo
- * Replace with PostgreSQL/MongoDB for production
+ * User store - PostgreSQL via Prisma
+ * Replaces in-memory Maps with database persistence
  */
 
-// Users: { googleId -> { user data } }
-export const users = new Map();
-
-// User documents: { googleId -> Set<documentId> }
-export const userDocuments = new Map();
+import prisma from '../db.js';
 
 /**
  * Find or create user from Google profile
  */
-export function findOrCreateUser(googleProfile) {
+export async function findOrCreateUser(googleProfile) {
   const { sub: googleId, email, name, picture } = googleProfile;
-  
-  let user = users.get(googleId);
-  
+
+  // Try to find existing user
+  let user = await prisma.user.findUnique({
+    where: { googleId }
+  });
+
   if (!user) {
-    user = {
-      id: googleId,
-      googleId,
-      email,
-      name,
-      picture,
-      createdAt: new Date().toISOString(),
-    };
-    users.set(googleId, user);
-    userDocuments.set(googleId, new Set());
+    // Create new user
+    user = await prisma.user.create({
+      data: {
+        id: googleId,
+        googleId,
+        email,
+        name,
+        picture: picture || null,
+      }
+    });
   } else {
     // Update profile info
-    user.email = email;
-    user.name = name;
-    user.picture = picture;
+    user = await prisma.user.update({
+      where: { googleId },
+      data: {
+        email,
+        name,
+        picture: picture || null,
+      }
+    });
   }
-  
+
   return user;
 }
 
 /**
  * Get user by Google ID
  */
-export function getUserById(googleId) {
-  return users.get(googleId) || null;
+export async function getUserById(googleId) {
+  return await prisma.user.findUnique({
+    where: { id: googleId }
+  });
 }
 
 /**
- * Link a document to a user
+ * Link a document to a user (handled via document.ownerId now)
  */
-export function linkDocumentToUser(googleId, documentId) {
-  if (!userDocuments.has(googleId)) {
-    userDocuments.set(googleId, new Set());
-  }
-  userDocuments.get(googleId).add(documentId);
+export async function linkDocumentToUser(googleId, documentId) {
+  await prisma.document.update({
+    where: { id: documentId },
+    data: { ownerId: googleId }
+  });
 }
 
 /**
  * Get all document IDs for a user
  */
-export function getUserDocumentIds(googleId) {
-  return Array.from(userDocuments.get(googleId) || []);
+export async function getUserDocumentIds(googleId) {
+  const documents = await prisma.document.findMany({
+    where: { ownerId: googleId },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return documents.map(doc => doc.id);
 }
 
 /**
  * Check if user owns a document
  */
-export function userOwnsDocument(googleId, documentId) {
-  const docs = userDocuments.get(googleId);
-  return docs ? docs.has(documentId) : false;
+export async function userOwnsDocument(googleId, documentId) {
+  const doc = await prisma.document.findFirst({
+    where: {
+      id: documentId,
+      ownerId: googleId
+    }
+  });
+
+  return !!doc;
 }
 
 /**
- * Remove document from user (on expiry)
+ * Remove document from user (handled by cascade delete)
  */
-export function unlinkDocumentFromUser(googleId, documentId) {
-  const docs = userDocuments.get(googleId);
-  if (docs) {
-    docs.delete(documentId);
-  }
+export async function unlinkDocumentFromUser(googleId, documentId) {
+  // No-op - cascade delete handles this
+  // Kept for backward compatibility
 }

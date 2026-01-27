@@ -1,0 +1,123 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// DOCUMENTS - PDF metadata and lifecycle
+// =============================================================================
+
+model Document {
+  id            String            @id // Custom ID (nanoid)
+  fileName      String
+  fileSize      Int
+  mimeType      String           @default("application/pdf")
+  pageCount     Int
+  s3Key         String?          // S3 storage key (null if in-memory)
+  uploadPending Boolean          @default(false)
+  ownerId       String?          // Google user ID (nullable for anonymous)
+  
+  createdAt     DateTime         @default(now())
+  expiresAt     DateTime         // Auto-calculated: createdAt + DOCUMENT_EXPIRY_DAYS
+  updatedAt     DateTime         @updatedAt
+  
+  // Relations
+  user          User?            @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  events        AnalyticsEvent[]
+  pageStats     PageStat[]
+  
+  @@index([ownerId])
+  @@index([expiresAt]) // For cleanup queries
+  @@index([createdAt])
+  @@map("documents")
+}
+
+// =============================================================================
+// USERS - Authentication and ownership
+// =============================================================================
+
+model User {
+  id        String   @id // Google user ID
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  picture   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  documents Document[]
+  
+  @@index([email])
+  @@map("users")
+}
+
+// =============================================================================
+// ANALYTICS - Page-level tracking
+// =============================================================================
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  documentId String
+  sessionId  String
+  type       EventType
+  pageNumber Int
+  
+  // Event data (JSON for flexibility)
+  timeSpent    Int?     // Seconds
+  scrollDepth  Int?     // Percentage (0-100)
+  
+  timestamp  DateTime @default(now())
+  userAgent  String?
+  ip         String?
+  
+  // Relations
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([documentId])
+  @@index([sessionId])
+  @@index([documentId, pageNumber])
+  @@index([timestamp])
+  @@map("analytics_events")
+}
+
+enum EventType {
+  page_view
+  page_exit
+  scroll
+}
+
+// =============================================================================
+// PAGE STATS - Aggregated analytics (for performance)
+// =============================================================================
+
+model PageStat {
+  id              String   @id @default(cuid())
+  documentId      String
+  pageNumber      Int
+  
+  views           Int      @default(0)
+  uniqueViewers   Int      @default(0) // Approximate count
+  totalTimeSpent  Int      @default(0) // Seconds
+  maxScrollDepth  Int      @default(0) // Percentage
+  
+  // Session tracking (for unique viewers)
+  sessions        String[] // Array of session IDs
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@unique([documentId, pageNumber])
+  @@index([documentId])
+  @@map("page_stats")
+}
