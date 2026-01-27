@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+        {
+            "source": "/(v|dashboard|analytics|success|.*)",
+            "destination": "/index.html"
+        }
+    ]
+}
