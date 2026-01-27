@@ -127,7 +127,7 @@ export default function Dashboard() {
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center">
               <FileText className="h-5 w-5 text-white" />
             </div>
-            <span className="font-bold text-xl">PDFShare</span>
+            <span className="font-bold text-xl">YeetPDF</span>
           </Link>
           <div className="flex items-center gap-4">
             <Button onClick={() => navigate('/')} className="bg-red-500 hover:bg-red-600">

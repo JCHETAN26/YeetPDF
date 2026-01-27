@@ -96,7 +96,7 @@ const LandingPage = () => {
             <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
               <FileText className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-bold text-xl">PDFShare</span>
+            <span className="font-bold text-xl">YeetPDF</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -247,7 +247,7 @@ const LandingPage = () => {
                 More than just file sharing
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                PDFShare gives you powerful analytics that show exactly how your documents perform
+                YeetPDF gives you powerful analytics that show exactly how your documents perform
               </p>
             </div>
 
@@ -398,7 +398,7 @@ const LandingPage = () => {
                 Perfect for professionals
               </h2>
               <p className="text-lg text-muted-foreground">
-                Join thousands who use PDFShare to share and track their documents
+                Join thousands who use YeetPDF to share and track their documents
               </p>
             </div>
 
@@ -493,7 +493,7 @@ const LandingPage = () => {
                 <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                   <FileText className="w-4 h-4 text-primary-foreground" />
                 </div>
-                <span className="font-bold">PDFShare</span>
+                <span className="font-bold">YeetPDF</span>
               </div>
               <p className="text-sm text-muted-foreground">
                 The fastest way to share PDFs with built-in analytics.
@@ -533,7 +533,7 @@ const LandingPage = () => {
 
           <div className="pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2025 PDFShare. All rights reserved.
+              © 2025 YeetPDF. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Twitter</a>
