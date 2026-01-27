@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,18 +12,24 @@ interface PDFRendererProps {
   onPageExit: (pageNumber: number, timeSpent: number) => void;
 }
 
+interface PageData {
+  pageNum: number;
+  rendered: boolean;
+}
+
 export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps) {
   const [pdf, setPdf] = useState<any>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.2);
   const [isLoading, setIsLoading] = useState(true);
-  const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
+  const [pages, setPages] = useState<PageData[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const pageEnteredAtRef = useRef<Date>(new Date());
   const currentPageRef = useRef(1);
+  const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  const renderingRef = useRef<Set<number>>(new Set());
 
   // Load PDF
   useEffect(() => {
@@ -35,6 +41,10 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
         console.log('[PDFRenderer] PDF loaded, pages:', pdfDoc.numPages);
         setPdf(pdfDoc);
         setTotalPages(pdfDoc.numPages);
+        setPages(Array.from({ length: pdfDoc.numPages }, (_, i) => ({
+          pageNum: i + 1,
+          rendered: false
+        })));
         setIsLoading(false);
       } catch (error) {
         console.error('[PDFRenderer] Error loading PDF:', error);
@@ -45,93 +55,94 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
     loadPdf();
   }, [pdfUrl]);
 
-  // Render a single page
-  const renderPage = useCallback(async (pageNum: number, container: HTMLDivElement) => {
-    if (!pdf || renderedPages.has(pageNum)) return;
-
-    try {
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale });
-
-      // Clear container
-      container.innerHTML = '';
-      container.style.width = `${viewport.width}px`;
-      container.style.height = `${viewport.height}px`;
-
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d')!;
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      canvas.style.display = 'block';
-      container.appendChild(canvas);
-
-      // Render canvas
-      await page.render({
-        canvasContext: context,
-        viewport: viewport,
-      }).promise;
-
-      // Create annotation layer for clickable links
-      const annotationLayer = document.createElement('div');
-      annotationLayer.style.position = 'absolute';
-      annotationLayer.style.top = '0';
-      annotationLayer.style.left = '0';
-      annotationLayer.style.width = `${viewport.width}px`;
-      annotationLayer.style.height = `${viewport.height}px`;
-      annotationLayer.style.pointerEvents = 'auto';
-      container.appendChild(annotationLayer);
-
-      // Get and render annotations (links)
-      const annotations = await page.getAnnotations();
-
-      annotations.forEach((annotation: any) => {
-        if (annotation.subtype === 'Link' && annotation.url) {
-          const rect = annotation.rect;
-          const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
-
-          const left = Math.min(x1, x2);
-          const top = Math.min(y1, y2);
-          const width = Math.abs(x2 - x1);
-          const height = Math.abs(y2 - y1);
-
-          const link = document.createElement('a');
-          link.href = annotation.url;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          link.style.position = 'absolute';
-          link.style.left = `${left}px`;
-          link.style.top = `${top}px`;
-          link.style.width = `${width}px`;
-          link.style.height = `${height}px`;
-          link.style.cursor = 'pointer';
-          link.style.backgroundColor = 'transparent';
-          link.style.transition = 'background-color 0.2s';
-          link.onmouseenter = () => { link.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; };
-          link.onmouseleave = () => { link.style.backgroundColor = 'transparent'; };
-
-          annotationLayer.appendChild(link);
-        }
-      });
-
-      setRenderedPages(prev => new Set([...prev, pageNum]));
-    } catch (error) {
-      console.error(`[PDFRenderer] Error rendering page ${pageNum}:`, error);
-    }
-  }, [pdf, scale, renderedPages]);
-
-  // Render all pages when PDF loads
+  // Render all pages when PDF loads or scale changes
   useEffect(() => {
     if (!pdf) return;
 
-    // Reset rendered pages when scale changes
-    setRenderedPages(new Set());
+    const renderAllPages = async () => {
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const canvas = canvasRefs.current.get(pageNum);
+        if (!canvas || renderingRef.current.has(pageNum)) continue;
 
-    // Render pages
-    pageRefs.current.forEach((container, pageNum) => {
-      renderPage(pageNum, container);
-    });
-  }, [pdf, scale, renderPage]);
+        renderingRef.current.add(pageNum);
+
+        try {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale });
+
+          const context = canvas.getContext('2d')!;
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+
+          await page.render({
+            canvasContext: context,
+            viewport: viewport,
+          }).promise;
+
+          // Add clickable links overlay
+          const parent = canvas.parentElement;
+          if (parent) {
+            // Remove existing annotation layer
+            const existingLayer = parent.querySelector('.annotation-layer');
+            if (existingLayer) existingLayer.remove();
+
+            const annotationLayer = document.createElement('div');
+            annotationLayer.className = 'annotation-layer';
+            annotationLayer.style.position = 'absolute';
+            annotationLayer.style.top = '0';
+            annotationLayer.style.left = '0';
+            annotationLayer.style.width = `${viewport.width}px`;
+            annotationLayer.style.height = `${viewport.height}px`;
+            annotationLayer.style.pointerEvents = 'auto';
+            parent.appendChild(annotationLayer);
+
+            const annotations = await page.getAnnotations();
+
+            annotations.forEach((annotation: any) => {
+              if (annotation.subtype === 'Link' && annotation.url) {
+                const rect = annotation.rect;
+                const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(rect);
+
+                const left = Math.min(x1, x2);
+                const top = Math.min(y1, y2);
+                const width = Math.abs(x2 - x1);
+                const height = Math.abs(y2 - y1);
+
+                const link = document.createElement('a');
+                link.href = annotation.url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.style.position = 'absolute';
+                link.style.left = `${left}px`;
+                link.style.top = `${top}px`;
+                link.style.width = `${width}px`;
+                link.style.height = `${height}px`;
+                link.style.cursor = 'pointer';
+                link.style.backgroundColor = 'transparent';
+                link.style.transition = 'background-color 0.2s';
+                link.onmouseenter = () => { link.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'; };
+                link.onmouseleave = () => { link.style.backgroundColor = 'transparent'; };
+
+                annotationLayer.appendChild(link);
+              }
+            });
+          }
+
+          setPages(prev => prev.map(p =>
+            p.pageNum === pageNum ? { ...p, rendered: true } : p
+          ));
+
+        } catch (error) {
+          console.error(`[PDFRenderer] Error rendering page ${pageNum}:`, error);
+        }
+
+        renderingRef.current.delete(pageNum);
+      }
+    };
+
+    // Small delay to ensure refs are set
+    setTimeout(renderAllPages, 100);
+  }, [pdf, scale, totalPages]);
 
   // Track current page based on scroll position
   useEffect(() => {
@@ -145,9 +156,9 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
       let closestPage = 1;
       let closestDistance = Infinity;
 
-      pageRefs.current.forEach((pageEl, pageNum) => {
-        const pageRect = pageEl.getBoundingClientRect();
-        const pageCenter = pageRect.top + pageRect.height / 2;
+      canvasRefs.current.forEach((canvas, pageNum) => {
+        const rect = canvas.getBoundingClientRect();
+        const pageCenter = rect.top + rect.height / 2;
         const distance = Math.abs(pageCenter - containerCenter);
 
         if (distance < closestDistance) {
@@ -157,11 +168,9 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
       });
 
       if (closestPage !== currentPageRef.current) {
-        // Track exit from previous page
         const timeSpent = (new Date().getTime() - pageEnteredAtRef.current.getTime()) / 1000;
         onPageExit(currentPageRef.current, timeSpent);
 
-        // Track view of new page
         setCurrentPage(closestPage);
         currentPageRef.current = closestPage;
         pageEnteredAtRef.current = new Date();
@@ -170,20 +179,24 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
     };
 
     container.addEventListener('scroll', handleScroll);
-
-    // Initial page view
     onPageView(1);
 
     return () => {
       container.removeEventListener('scroll', handleScroll);
-      // Track exit on unmount
       const timeSpent = (new Date().getTime() - pageEnteredAtRef.current.getTime()) / 1000;
       onPageExit(currentPageRef.current, timeSpent);
     };
   }, [pdf, onPageView, onPageExit]);
 
-  const zoomIn = () => setScale(Math.min(scale + 0.25, 3));
-  const zoomOut = () => setScale(Math.max(scale - 0.25, 0.5));
+  const zoomIn = () => {
+    renderingRef.current.clear();
+    setScale(Math.min(scale + 0.25, 3));
+  };
+
+  const zoomOut = () => {
+    renderingRef.current.clear();
+    setScale(Math.max(scale - 0.25, 0.5));
+  };
 
   if (isLoading) {
     return (
@@ -235,27 +248,22 @@ export function PDFRenderer({ pdfUrl, onPageView, onPageExit }: PDFRendererProps
       <div
         ref={containerRef}
         className="flex-1 overflow-auto bg-neutral-900"
-        style={{ scrollBehavior: 'smooth' }}
       >
-        <div className="flex flex-col items-center py-8 gap-4">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+        <div className="flex flex-col items-center py-8 gap-6">
+          {pages.map(({ pageNum, rendered }) => (
             <div
               key={pageNum}
-              ref={(el) => {
-                if (el) {
-                  pageRefs.current.set(pageNum, el);
-                  // Render when ref is set
-                  if (pdf && !renderedPages.has(pageNum)) {
-                    renderPage(pageNum, el);
-                  }
-                }
-              }}
               className="relative shadow-2xl bg-white"
-              style={{ minHeight: '200px' }}
+              style={{ minHeight: '200px', minWidth: '200px' }}
             >
-              {!renderedPages.has(pageNum) && (
-                <div className="absolute inset-0 flex items-center justify-center bg-neutral-200">
-                  <Loader2 className="w-6 h-6 animate-spin text-neutral-500" />
+              <canvas
+                ref={(el) => {
+                  if (el) canvasRefs.current.set(pageNum, el);
+                }}
+              />
+              {!rendered && (
+                <div className="absolute inset-0 flex items-center justify-center bg-neutral-100">
+                  <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
                 </div>
               )}
             </div>
