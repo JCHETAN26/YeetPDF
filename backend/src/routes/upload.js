@@ -296,15 +296,16 @@ router.post('/merge', optionalAuthMiddleware, async (req, res) => {
   try {
     // Use promisified multer upload
     await new Promise((resolve, reject) => {
-      mergeUpload.array('files', 10)(req, res, (err) => {
+      // Use .any() to handle any field name issues
+      mergeUpload.any()(req, res, (err) => {
         if (err) {
           console.error('[MERGE] Multer error:', err.message);
           console.error('[MERGE] Error code:', err.code);
           console.error('[MERGE] Error field:', err.field);
 
-          // If "Unexpected field" error, provide helpful message
           if (err.message.includes('Unexpected field')) {
-            reject(new Error(`Field name mismatch. Expected "files" but got "${err.field}". Check FormData field names.`));
+            // Should not happen with .any(), but keeping for safety
+            reject(new Error(`Multer error: ${err.message}`));
           } else {
             reject(err);
           }
