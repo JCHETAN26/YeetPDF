@@ -167,7 +167,7 @@ const PublicViewer = () => {
         {/* Top Ad Banner */}
         <div className="bg-neutral-900 border-b border-neutral-800 py-2">
           <div className="max-w-[728px] mx-auto min-h-[90px] flex items-center justify-center">
-            <AdBanner slot="VIEWER_TOP_SLOT" format="horizontal" className="w-full" />
+            <AdBanner slot="6133551398" format="horizontal" className="w-full" />
             <AdPlaceholder height="90px" width="728px" />
           </div>
         </div>

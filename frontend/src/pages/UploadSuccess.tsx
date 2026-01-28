@@ -232,7 +232,7 @@ const UploadSuccess = () => {
 
             {/* Ad Banner on Success Page */}
             <div className="mt-8 mb-4">
-              <AdBanner slot="SUCCESS_PAGE_SLOT" format="horizontal" />
+              <AdBanner slot="6116066065" format="horizontal" />
               <AdPlaceholder height="90px" />
             </div>
 

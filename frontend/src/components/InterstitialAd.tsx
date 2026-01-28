@@ -55,7 +55,7 @@ export function InterstitialAd({ onComplete, open }: InterstitialAdProps) {
                  We use a large Display Ad slot here which often serves video/rich media.
              */}
                         <div className="w-full h-full flex items-center justify-center bg-zinc-900">
-                            <AdBanner slot="YOUR_ADSENSE_VIDEO_SLOT_ID" format="rectangle" className="w-full h-full flex items-center justify-center" />
+                            <AdBanner slot="6886222256" format="rectangle" className="w-full h-full flex items-center justify-center" />
                             <AdPlaceholder width="100%" height="100%" className="absolute inset-0 z-[-1]" />
                         </div>
                     </div>
@@ -83,7 +83,7 @@ export function InterstitialAd({ onComplete, open }: InterstitialAdProps) {
 
                         {/* Another small ad unit for side */}
                         <div className="mt-4">
-                            <AdBanner slot="YOUR_SIDEBAR_SLOT_ID" format="rectangle" />
+                            <AdBanner slot="6116066065" format="rectangle" />
                             <AdPlaceholder height="250px" />
                         </div>
                     </div>
