@@ -1,24 +1,27 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Check, Copy, ExternalLink, FileText, Clock, Share2, Mail, MessageCircle, Twitter, BarChart3, Link2, Eye } from "lucide-react";
+import { Check, Copy, ExternalLink, FileText, Clock, Share2, Mail, MessageCircle, Twitter, BarChart3, Link2, Eye, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatFileSize } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 
 const UploadSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, login } = useAuth();
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedAnalytics, setCopiedAnalytics] = useState(false);
 
-  const { 
+  const {
     documentId,
-    fileName, 
+    fileName,
     fileSize,
     pageCount,
-    shareUrl, 
+    shareUrl,
     viewerUrl,
     analyticsUrl,
-    expiresAt 
+    expiresAt
   } = location.state || {
     documentId: "demo123",
     fileName: "document.pdf",
@@ -54,13 +57,13 @@ const UploadSuccess = () => {
     const text = `Check out this PDF: ${fileName}`;
     const encodedUrl = encodeURIComponent(shareUrl);
     const encodedText = encodeURIComponent(text);
-    
+
     const shareUrls: Record<string, string> = {
       twitter: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
       email: `mailto:?subject=${encodeURIComponent(`Shared PDF: ${fileName}`)}&body=${encodedText}%0A%0A${encodedUrl}`,
       whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
     };
-    
+
     if (platform === 'native' && navigator.share) {
       try {
         await navigator.share({ title: fileName, text, url: shareUrl });
@@ -100,7 +103,7 @@ const UploadSuccess = () => {
               <h1 className="text-2xl font-semibold text-foreground mb-2">
                 Upload Complete
               </h1>
-              
+
               {/* File Info */}
               <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
                 <span className="truncate max-w-[200px]">{fileName}</span>
@@ -144,7 +147,7 @@ const UploadSuccess = () => {
                     )}
                   </button>
                 </div>
-                
+
                 {/* Quick Share Buttons */}
                 <div className="flex items-center gap-2 mt-3">
                   <span className="text-xs text-muted-foreground">Quick share:</span>
@@ -165,60 +168,89 @@ const UploadSuccess = () => {
                 </div>
               </div>
 
-              {/* Analytics Link - For uploader only */}
-              <div className="p-5 rounded-xl bg-muted/50 border border-border">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="w-4 h-4 text-muted-foreground" />
-                  <h3 className="font-semibold text-foreground">Analytics Dashboard</h3>
-                  <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full ml-auto">
-                    Keep this private
-                  </span>
+              {/* Analytics Link - For logged-in users only */}
+              {user ? (
+                <div className="p-5 rounded-xl bg-muted/50 border border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="font-semibold text-foreground">Analytics Dashboard</h3>
+                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full ml-auto">
+                      Keep this private
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Track views, see which pages get read, and monitor engagement.
+                  </p>
+                  <div className="flex items-center border border-border rounded-lg overflow-hidden bg-background">
+                    <input
+                      type="text"
+                      value={fullAnalyticsUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2.5 text-sm bg-transparent text-foreground outline-none font-mono"
+                    />
+                    <button
+                      onClick={handleCopyAnalytics}
+                      className="px-3 py-2.5 hover:bg-muted transition-colors border-l border-border"
+                      title="Copy to clipboard"
+                    >
+                      {copiedAnalytics ? (
+                        <Check className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Track views, see which pages get read, and monitor engagement.
-                </p>
-                <div className="flex items-center border border-border rounded-lg overflow-hidden bg-background">
-                  <input
-                    type="text"
-                    value={fullAnalyticsUrl}
-                    readOnly
-                    className="flex-1 px-3 py-2.5 text-sm bg-transparent text-foreground outline-none font-mono"
-                  />
-                  <button
-                    onClick={handleCopyAnalytics}
-                    className="px-3 py-2.5 hover:bg-muted transition-colors border-l border-border"
-                    title="Copy to clipboard"
-                  >
-                    {copiedAnalytics ? (
-                      <Check className="w-4 h-4 text-primary" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </button>
+              ) : (
+                <div className="p-5 rounded-xl bg-muted/50 border border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="font-semibold text-foreground">Want to see analytics?</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Sign in with Google to track views, see which pages get read, and monitor engagement for all your uploads.
+                  </p>
+                  <div className="flex justify-center">
+                    <GoogleLogin
+                      onSuccess={(credentialResponse: CredentialResponse) => {
+                        if (credentialResponse.credential) {
+                          login(credentialResponse.credential);
+                        }
+                      }}
+                      onError={() => console.error('Login failed')}
+                      theme="outline"
+                      size="large"
+                      text="signin_with"
+                      shape="rectangular"
+                      width="280"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              <Button 
-                variant="outline" 
-                size="lg" 
+              <Button
+                variant="outline"
+                size="lg"
                 className="flex-1"
                 onClick={() => window.open(viewerUrl, '_blank')}
               >
                 <Eye className="w-4 h-4 mr-2" />
                 Preview PDF
               </Button>
-              <Button 
-                variant="premium" 
-                size="lg" 
-                className="flex-1"
-                onClick={() => navigate(analyticsUrl)}
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                View Analytics
-              </Button>
+              {user && (
+                <Button
+                  variant="premium"
+                  size="lg"
+                  className="flex-1"
+                  onClick={() => navigate(analyticsUrl)}
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  View Analytics
+                </Button>
+              )}
             </div>
 
             {/* Expiry Notice */}
