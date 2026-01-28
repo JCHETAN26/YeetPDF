@@ -26,6 +26,23 @@ const upload = multer({
   }
 });
 
+// Multer for merge - handles multiple files
+const mergeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+    files: 10  // Max 10 files
+  },
+  fileFilter: (req, file, cb) => {
+    console.log('[MERGE] File received:', file.originalname, file.mimetype);
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error(`Only PDF files are allowed. Got: ${file.mimetype}`));
+    }
+  }
+});
+
 /**
  * POST /api/upload/request
  * Request a secure presigned upload URL for direct S3 upload
@@ -273,7 +290,7 @@ router.post('/:id', upload.single('file'), async (req, res) => {
  */
 router.post('/merge', optionalAuthMiddleware, (req, res) => {
   // Handle multer upload with explicit error handling
-  upload.array('files', 10)(req, res, async (multerErr) => {
+  mergeUpload.array('files', 10)(req, res, async (multerErr) => {
     if (multerErr) {
       console.error('[MERGE] Multer error:', multerErr.message);
       return res.status(400).json({ error: multerErr.message || 'File upload failed' });
