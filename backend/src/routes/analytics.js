@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { getDocument, analyticsEvents, pageStats } from '../store.js';
+import { getUserById } from '../services/users.js';
+import { sendViewAlert } from '../services/email.js';
 
 const router = Router();
 
@@ -52,6 +54,18 @@ router.post('/event', async (req, res) => {
 
     // Update aggregated page stats
     updatePageStats(documentId, pageNumber, type, data, sessionId);
+
+    // Send Email Alert (Async - Fire & Forget)
+    if (doc.ownerId && type === 'page_view' && pageNumber === 1 && doc.fileName) {
+      // Only check on first page view to minimize DB hits
+      getUserById(doc.ownerId).then(owner => {
+        if (owner && owner.email) {
+          sendViewAlert(owner.email, documentId, doc.fileName, {
+            device: req.headers['user-agent']
+          });
+        }
+      }).catch(err => console.error('[ANALYTICS] Alert failed:', err));
+    }
 
     res.json({ success: true });
   } catch (err) {
