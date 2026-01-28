@@ -283,19 +283,31 @@ router.post('/:id', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });
+
 /**
  * POST /api/upload/merge
  * Merge multiple PDFs into one document
  * FIXED VERSION with proper error handling
  */
 router.post('/merge', optionalAuthMiddleware, async (req, res) => {
+  console.log('[MERGE] Request received');
+  console.log('[MERGE] Content-Type:', req.headers['content-type']);
+
   try {
     // Use promisified multer upload
     await new Promise((resolve, reject) => {
       mergeUpload.array('files', 10)(req, res, (err) => {
         if (err) {
           console.error('[MERGE] Multer error:', err.message);
-          reject(err);
+          console.error('[MERGE] Error code:', err.code);
+          console.error('[MERGE] Error field:', err.field);
+
+          // If "Unexpected field" error, provide helpful message
+          if (err.message.includes('Unexpected field')) {
+            reject(new Error(`Field name mismatch. Expected "files" but got "${err.field}". Check FormData field names.`));
+          } else {
+            reject(err);
+          }
         } else {
           resolve();
         }
