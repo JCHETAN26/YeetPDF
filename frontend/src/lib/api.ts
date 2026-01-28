@@ -122,6 +122,73 @@ async function uploadPDFToBackend(
   };
 }
 
+// Merge multiple PDFs into one
+export async function mergePDFs(
+  files: File[],
+  customSlug?: string,
+  combinedName?: string,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<PDFDocument> {
+  console.log('[API] mergePDFs called:', { fileCount: files.length, customSlug, combinedName });
+
+  onProgress?.({ phase: 'preparing', progress: 0, message: 'Preparing files...' });
+
+  const formData = new FormData();
+
+  // Add metadata first
+  if (customSlug) {
+    formData.append('customSlug', customSlug);
+  }
+  if (combinedName) {
+    formData.append('combinedName', combinedName);
+  }
+
+  // Add all files
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+
+  onProgress?.({ phase: 'uploading', progress: 30, message: 'Uploading and merging...' });
+
+  // Get auth token if available
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}/upload/merge`, {
+    method: 'POST',
+    body: formData,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Merge failed');
+  }
+
+  onProgress?.({ phase: 'processing', progress: 80, message: 'Finalizing...' });
+
+  const result = await response.json();
+
+  console.log('[API] Merge response:', result);
+
+  onProgress?.({ phase: 'complete', progress: 100, message: 'Complete!' });
+
+  return {
+    id: result.document.id,
+    fileName: result.document.fileName,
+    fileSize: result.document.fileSize,
+    pageCount: result.document.pageCount,
+    uploadedAt: new Date(result.document.createdAt),
+    expiresAt: new Date(result.document.expiresAt),
+    shareUrl: result.document.shareUrl,
+    viewerUrl: result.document.viewerUrl,
+    analyticsUrl: result.document.analyticsUrl,
+  };
+}
+
 // Mock upload implementation
 async function uploadPDFMock(
   file: File,

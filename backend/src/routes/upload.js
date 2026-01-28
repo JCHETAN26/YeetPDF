@@ -266,4 +266,96 @@ router.post('/:id', upload.single('file'), async (req, res) => {
   }
 });
 
+/**
+ * POST /api/upload/merge
+ * Merge multiple PDFs into one document
+ */
+router.post('/merge', optionalAuthMiddleware, upload.array('files', 10), async (req, res) => {
+  try {
+    const files = req.files;
+    const { customSlug, combinedName } = req.body;
+
+    console.log('[MERGE] Received:', {
+      fileCount: files?.length,
+      customSlug,
+      combinedName,
+      hasAuth: !!req.user
+    });
+
+    if (!files || files.length < 2) {
+      return res.status(400).json({ error: 'At least 2 PDF files are required' });
+    }
+
+    // Dynamic import pdf-lib
+    const { PDFDocument } = await import('pdf-lib');
+
+    // Create merged PDF
+    const mergedPdf = await PDFDocument.create();
+    let totalPageCount = 0;
+
+    for (const file of files) {
+      try {
+        const pdf = await PDFDocument.load(file.buffer);
+        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        pages.forEach(page => mergedPdf.addPage(page));
+        totalPageCount += pdf.getPageCount();
+      } catch (err) {
+        console.error('[MERGE] Failed to process file:', file.originalname, err.message);
+        return res.status(400).json({ error: `Failed to process ${file.originalname}` });
+      }
+    }
+
+    const mergedBuffer = Buffer.from(await mergedPdf.save());
+    const id = await generateId(10, customSlug);
+    const fileName = combinedName || `merged-${files.length}-documents.pdf`;
+
+    console.log('[MERGE] Generated ID:', id, 'Pages:', totalPageCount);
+
+    let s3Key = null;
+
+    // Upload to S3 if configured
+    if (isS3Configured()) {
+      const result = await uploadPDFToS3(id, fileName, mergedBuffer);
+      s3Key = result.key;
+    } else {
+      // Store in memory (demo mode)
+      pdfData.set(id, mergedBuffer);
+    }
+
+    // Create document record
+    const doc = await createDocument(id, {
+      fileName,
+      fileSize: mergedBuffer.length,
+      mimeType: 'application/pdf',
+      pageCount: totalPageCount,
+      s3Key,
+      ownerId: req.user?.userId || null
+    });
+
+    // Link document to user if logged in
+    if (req.user) {
+      await linkDocumentToUser(req.user.userId, id);
+      console.log('[MERGE] Linked document to user:', req.user.userId);
+    }
+
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    res.json({
+      success: true,
+      document: {
+        ...doc,
+        shareUrl: `${frontendUrl}/v/${id}`,
+        viewerUrl: `/v/${id}`,
+        analyticsUrl: `/analytics/${id}`,
+        pdfUrl: `${baseUrl}/api/pdf/${id}`
+      }
+    });
+  } catch (err) {
+    console.error('Merge error:', err);
+    res.status(500).json({ error: err.message || 'Merge failed' });
+  }
+});
+
 export { router as uploadRouter };
+

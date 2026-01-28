@@ -11,11 +11,15 @@ import {
   BarChart3,
   Users,
   Star,
-  ArrowRight
+  ArrowRight,
+  Layers,
+  X,
+  GripVertical
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/UserMenu";
 import { UploadDialog } from "@/components/UploadDialog";
+import { MergeDialog } from "@/components/MergeDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const LandingPage = () => {
@@ -25,6 +29,11 @@ const LandingPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+
+  // Merge mode state
+  const [isMergeMode, setIsMergeMode] = useState(false);
+  const [mergeFiles, setMergeFiles] = useState<File[]>([]);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -36,56 +45,91 @@ const LandingPage = () => {
     setIsDragging(false);
   }, []);
 
+  const validatePDFFile = (file: File): string | null => {
+    if (file.type !== "application/pdf") {
+      return "Please upload a PDF file";
+    }
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return `File size exceeds 50MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`;
+    }
+    return null;
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     setError(null);
 
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
+    const files = Array.from(e.dataTransfer.files);
 
-      // Validate file type
-      if (file.type !== "application/pdf") {
-        setError("Please upload a PDF file");
-        return;
+    if (isMergeMode) {
+      // Merge mode: accept multiple files
+      const validFiles: File[] = [];
+      for (const file of files) {
+        const error = validatePDFFile(file);
+        if (error) {
+          setError(error);
+          return;
+        }
+        validFiles.push(file);
       }
-
-      // Validate file size (50MB = 52428800 bytes)
-      const maxSize = 50 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setError(`File size exceeds 50MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`);
-        return;
+      const newMergeFiles = [...mergeFiles, ...validFiles].slice(0, 10);
+      setMergeFiles(newMergeFiles);
+      if (newMergeFiles.length >= 2) {
+        setShowMergeDialog(true);
       }
-
-      setSelectedFile(file);
-      setShowUploadDialog(true);
+    } else {
+      // Single mode
+      if (files.length > 0) {
+        const file = files[0];
+        const error = validatePDFFile(file);
+        if (error) {
+          setError(error);
+          return;
+        }
+        setSelectedFile(file);
+        setShowUploadDialog(true);
+      }
     }
-  }, []);
+  }, [isMergeMode, mergeFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     const files = e.target.files;
-    if (files && files.length > 0) {
+    if (!files || files.length === 0) return;
+
+    if (isMergeMode) {
+      // Merge mode: accept multiple files
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        const error = validatePDFFile(file);
+        if (error) {
+          setError(error);
+          return;
+        }
+        validFiles.push(file);
+      }
+      const newMergeFiles = [...mergeFiles, ...validFiles].slice(0, 10);
+      setMergeFiles(newMergeFiles);
+      if (newMergeFiles.length >= 2) {
+        setShowMergeDialog(true);
+      }
+    } else {
+      // Single mode
       const file = files[0];
-
-      // Validate file type
-      if (file.type !== "application/pdf") {
-        setError("Please upload a PDF file");
+      const error = validatePDFFile(file);
+      if (error) {
+        setError(error);
         return;
       }
-
-      // Validate file size (50MB = 52428800 bytes)
-      const maxSize = 50 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setError(`File size exceeds 50MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`);
-        return;
-      }
-
       setSelectedFile(file);
       setShowUploadDialog(true);
     }
-  }, []);
+
+    // Reset input
+    e.target.value = '';
+  }, [isMergeMode, mergeFiles]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -128,10 +172,41 @@ const LandingPage = () => {
               <span className="text-primary">Track every view.</span>
             </h1>
 
-            <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: "0.1s" }}>
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: "0.1s" }}>
               The fastest way to share documents online. Drop a PDF, get a link,
               see who reads what. No signup required.
             </p>
+
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-center gap-2 mb-8 animate-fade-in" style={{ animationDelay: "0.15s" }}>
+              <button
+                onClick={() => {
+                  setIsMergeMode(false);
+                  setMergeFiles([]);
+                  setError(null);
+                }}
+                className={`px-4 py-2 rounded-l-lg text-sm font-medium transition-all ${!isMergeMode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                <FileText className="w-4 h-4 inline mr-2" />
+                Single PDF
+              </button>
+              <button
+                onClick={() => {
+                  setIsMergeMode(true);
+                  setError(null);
+                }}
+                className={`px-4 py-2 rounded-r-lg text-sm font-medium transition-all ${isMergeMode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                <Layers className="w-4 h-4 inline mr-2" />
+                Merge PDFs
+              </button>
+            </div>
 
             {/* Upload Zone */}
             <div
@@ -144,6 +219,7 @@ const LandingPage = () => {
               <input
                 type="file"
                 accept=".pdf,application/pdf"
+                multiple={isMergeMode}
                 onChange={handleFileSelect}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
@@ -154,6 +230,8 @@ const LandingPage = () => {
                   }`}>
                   {error ? (
                     <AlertCircle className="w-7 h-7 text-destructive" />
+                  ) : isMergeMode ? (
+                    <Layers className={`w-7 h-7 transition-colors duration-300 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                   ) : (
                     <Upload className={`w-7 h-7 transition-colors duration-300 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                   )}
@@ -164,6 +242,20 @@ const LandingPage = () => {
                     <>
                       <p className="text-lg font-medium text-destructive">{error}</p>
                       <p className="text-sm text-muted-foreground">Try uploading a different file</p>
+                    </>
+                  ) : isMergeMode ? (
+                    <>
+                      <p className="text-lg font-medium text-foreground">
+                        Drop multiple PDFs here
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Select 2-10 files to merge • Up to 50MB each
+                      </p>
+                      {mergeFiles.length > 0 && (
+                        <p className="text-sm font-medium text-primary">
+                          {mergeFiles.length} file{mergeFiles.length > 1 ? 's' : ''} selected
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
@@ -179,8 +271,17 @@ const LandingPage = () => {
 
                 {!error && (
                   <Button variant="premium" size="lg" className="mt-2 pointer-events-none">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Select PDF File
+                    {isMergeMode ? (
+                      <>
+                        <Layers className="w-4 h-4 mr-2" />
+                        Select Files to Merge
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Select PDF File
+                      </>
+                    )}
                   </Button>
                 )}
 
@@ -549,6 +650,14 @@ const LandingPage = () => {
         open={showUploadDialog}
         onOpenChange={setShowUploadDialog}
         file={selectedFile}
+      />
+
+      {/* Merge Dialog */}
+      <MergeDialog
+        files={mergeFiles}
+        open={showMergeDialog}
+        onOpenChange={setShowMergeDialog}
+        onFilesChange={setMergeFiles}
       />
     </div>
   );
