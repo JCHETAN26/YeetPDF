@@ -283,102 +283,141 @@ router.post('/:id', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: err.message || 'Upload failed' });
   }
 });
-
 /**
  * POST /api/upload/merge
  * Merge multiple PDFs into one document
+ * FIXED VERSION with proper error handling
  */
-router.post('/merge', optionalAuthMiddleware, (req, res) => {
-  // Handle multer upload with explicit error handling
-  mergeUpload.array('files', 10)(req, res, async (multerErr) => {
-    if (multerErr) {
-      console.error('[MERGE] Multer error:', multerErr.message);
-      return res.status(400).json({ error: multerErr.message || 'File upload failed' });
-    }
-
-    try {
-      const files = req.files;
-      const { customSlug, combinedName } = req.body;
-
-      console.log('[MERGE] Received:', {
-        fileCount: files?.length,
-        customSlug,
-        combinedName,
-        hasAuth: !!req.user
-      });
-
-      if (!files || files.length < 2) {
-        return res.status(400).json({ error: 'At least 2 PDF files are required' });
-      }
-
-      // Create merged PDF
-      const mergedPdf = await PDFDocument.create();
-      let totalPageCount = 0;
-
-      for (const file of files) {
-        try {
-          const pdf = await PDFDocument.load(file.buffer);
-          const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-          pages.forEach(page => mergedPdf.addPage(page));
-          totalPageCount += pdf.getPageCount();
-        } catch (err) {
-          console.error('[MERGE] Failed to process file:', file.originalname, err.message);
-          return res.status(400).json({ error: `Failed to process ${file.originalname}` });
-        }
-      }
-
-      const mergedBuffer = Buffer.from(await mergedPdf.save());
-      const id = await generateId(10, customSlug);
-      const fileName = combinedName || `merged-${files.length}-documents.pdf`;
-
-      console.log('[MERGE] Generated ID:', id, 'Pages:', totalPageCount);
-
-      let s3Key = null;
-
-      // Upload to S3 if configured
-      if (isS3Configured()) {
-        const result = await uploadPDFToS3(id, fileName, mergedBuffer);
-        s3Key = result.key;
-      } else {
-        // Store in memory (demo mode)
-        pdfData.set(id, mergedBuffer);
-      }
-
-      // Create document record
-      const doc = await createDocument(id, {
-        fileName,
-        fileSize: mergedBuffer.length,
-        mimeType: 'application/pdf',
-        pageCount: totalPageCount,
-        s3Key,
-        ownerId: req.user?.userId || null
-      });
-
-      // Link document to user if logged in
-      if (req.user) {
-        await linkDocumentToUser(req.user.userId, id);
-        console.log('[MERGE] Linked document to user:', req.user.userId);
-      }
-
-      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-      res.json({
-        success: true,
-        document: {
-          ...doc,
-          shareUrl: `${frontendUrl}/v/${id}`,
-          viewerUrl: `/v/${id}`,
-          analyticsUrl: `/analytics/${id}`,
-          pdfUrl: `${baseUrl}/api/pdf/${id}`
+router.post('/merge', optionalAuthMiddleware, async (req, res) => {
+  try {
+    // Use promisified multer upload
+    await new Promise((resolve, reject) => {
+      mergeUpload.array('files', 10)(req, res, (err) => {
+        if (err) {
+          console.error('[MERGE] Multer error:', err.message);
+          reject(err);
+        } else {
+          resolve();
         }
       });
-    } catch (err) {
-      console.error('[MERGE] Error:', err.message);
-      console.error('[MERGE] Stack:', err.stack);
-      res.status(500).json({ error: err.message || 'Merge failed' });
+    });
+
+    const files = req.files;
+    const { customSlug, combinedName } = req.body;
+
+    console.log('[MERGE] Received:', {
+      fileCount: files?.length,
+      customSlug,
+      combinedName,
+      hasAuth: !!req.user,
+      files: files?.map(f => ({ name: f.originalname, size: f.size }))
+    });
+
+    if (!files || files.length < 2) {
+      return res.status(400).json({ error: 'At least 2 PDF files are required' });
     }
-  });
+
+    // Create merged PDF
+    console.log('[MERGE] Creating merged PDF...');
+    const mergedPdf = await PDFDocument.create();
+    let totalPageCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        console.log(`[MERGE] Processing file ${i + 1}/${files.length}: ${file.originalname}`);
+
+        // Load the PDF with error handling
+        const pdf = await PDFDocument.load(file.buffer, { ignoreEncryption: true });
+        const pageCount = pdf.getPageCount();
+
+        console.log(`[MERGE] File ${file.originalname} has ${pageCount} pages`);
+
+        // Copy all pages
+        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        pages.forEach(page => mergedPdf.addPage(page));
+        totalPageCount += pageCount;
+
+        console.log(`[MERGE] Successfully added ${pageCount} pages from ${file.originalname}`);
+      } catch (err) {
+        console.error(`[MERGE] Failed to process file ${file.originalname}:`, err.message);
+        console.error('[MERGE] Error stack:', err.stack);
+        return res.status(400).json({
+          error: `Failed to process ${file.originalname}: ${err.message}`
+        });
+      }
+    }
+
+    console.log(`[MERGE] Merging complete. Total pages: ${totalPageCount}`);
+
+    // Save the merged PDF
+    console.log('[MERGE] Saving merged PDF...');
+    const mergedPdfBytes = await mergedPdf.save();
+    const mergedBuffer = Buffer.from(mergedPdfBytes);
+
+    console.log(`[MERGE] Merged PDF size: ${mergedBuffer.length} bytes`);
+
+    const id = await generateId(10, customSlug);
+    const fileName = combinedName || `merged-${files.length}-documents.pdf`;
+
+    console.log('[MERGE] Generated ID:', id, 'Pages:', totalPageCount);
+
+    let s3Key = null;
+
+    // Upload to S3 if configured
+    if (isS3Configured()) {
+      console.log('[MERGE] Uploading to S3...');
+      const result = await uploadPDFToS3(id, fileName, mergedBuffer);
+      s3Key = result.key;
+      console.log('[MERGE] Uploaded to S3:', s3Key);
+    } else {
+      // Store in memory (demo mode)
+      console.log('[MERGE] Storing in memory...');
+      pdfData.set(id, mergedBuffer);
+    }
+
+    // Create document record
+    console.log('[MERGE] Creating document record...');
+    const doc = await createDocument(id, {
+      fileName,
+      fileSize: mergedBuffer.length,
+      mimeType: 'application/pdf',
+      pageCount: totalPageCount,
+      s3Key,
+      ownerId: req.user?.userId || null
+    });
+
+    // Link document to user if logged in
+    if (req.user) {
+      await linkDocumentToUser(req.user.userId, id);
+      console.log('[MERGE] Linked document to user:', req.user.userId);
+    }
+
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    const response = {
+      success: true,
+      document: {
+        ...doc,
+        shareUrl: `${frontendUrl}/v/${id}`,
+        viewerUrl: `/v/${id}`,
+        analyticsUrl: `/analytics/${id}`,
+        pdfUrl: `${baseUrl}/api/pdf/${id}`
+      }
+    };
+
+    console.log('[MERGE] Success! Document ID:', id);
+    res.json(response);
+
+  } catch (err) {
+    console.error('[MERGE] Unexpected error:', err.message);
+    console.error('[MERGE] Stack:', err.stack);
+    res.status(500).json({
+      error: err.message || 'Merge failed',
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
 });
 
 export { router as uploadRouter };
