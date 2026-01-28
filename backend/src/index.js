@@ -31,7 +31,15 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+
+// JSON body parser - skip for upload routes (they use multipart/form-data)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/upload')) {
+    // Skip JSON parsing for upload routes - multer handles multipart
+    return next();
+  }
+  express.json()(req, res, next);
+});
 
 // Health check
 app.get('/health', (req, res) => {
