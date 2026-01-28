@@ -352,7 +352,8 @@ router.post('/merge', optionalAuthMiddleware, upload.array('files', 10), async (
       }
     });
   } catch (err) {
-    console.error('Merge error:', err);
+    console.error('[MERGE] Error:', err.message);
+    console.error('[MERGE] Stack:', err.stack);
     res.status(500).json({ error: err.message || 'Merge failed' });
   }
 });
