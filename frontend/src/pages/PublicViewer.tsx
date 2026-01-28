@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { 
-  FileText, 
+import {
+  FileText,
   Download,
   Loader2,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PDFRenderer } from "@/components/PDFRenderer";
 import { getDocument, trackPageView, startSession } from "@/lib/api";
 import type { PDFDocument } from "@/types";
+import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
 /**
  * PublicViewer - Clean, distraction-free PDF viewer for link recipients
@@ -19,11 +20,11 @@ const PublicViewer = () => {
   const [document, setDocument] = useState<PDFDocument | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // PDF URL - direct from backend
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
   const pdfUrl = documentId ? `${API_BASE}/pdf/${documentId}` : null;
-  
+
   // Session tracking
   const sessionIdRef = useRef<string | null>(null);
   const pageTimesRef = useRef<Map<number, Date>>(new Map());
@@ -36,37 +37,37 @@ const PublicViewer = () => {
         setIsLoading(false);
         return;
       }
-      
+
       try {
         const doc = await getDocument(documentId);
-        
+
         if (!doc) {
           setError("This document has expired or doesn't exist");
           setIsLoading(false);
           return;
         }
-        
+
         setDocument(doc);
-        
+
         // Start a viewing session
         sessionIdRef.current = startSession(documentId);
-        
+
       } catch (err) {
         setError("Failed to load document");
       } finally {
         setIsLoading(false);
       }
     }
-    
+
     loadDocument();
   }, [documentId]);
 
   // Handle page view
   const handlePageView = (pageNumber: number) => {
     if (!documentId || !sessionIdRef.current) return;
-    
+
     pageTimesRef.current.set(pageNumber, new Date());
-    
+
     trackPageView({
       documentId,
       sessionId: sessionIdRef.current,
@@ -80,10 +81,10 @@ const PublicViewer = () => {
   // Handle page exit
   const handlePageExit = (pageNumber: number, timeSpent: number) => {
     if (!documentId || !sessionIdRef.current) return;
-    
+
     const enteredAt = pageTimesRef.current.get(pageNumber);
     if (!enteredAt) return;
-    
+
     trackPageView({
       documentId,
       sessionId: sessionIdRef.current,
@@ -136,8 +137,8 @@ const PublicViewer = () => {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-950">
       {/* Minimal Header - appears on hover */}
-      <header className="fixed top-0 left-0 right-0 z-50 opacity-0 hover:opacity-100 transition-opacity duration-300">
-        <div className="bg-gradient-to-b from-black/80 to-transparent py-4 px-6">
+      <header className="fixed top-0 left-0 right-0 z-50 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+        <div className="bg-gradient-to-b from-black/80 to-transparent py-4 px-6 pointer-events-auto">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
@@ -148,8 +149,8 @@ const PublicViewer = () => {
               </span>
             </div>
 
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               className="text-white hover:bg-white/10"
               onClick={handleDownload}
@@ -161,30 +162,40 @@ const PublicViewer = () => {
         </div>
       </header>
 
-      {/* PDF Viewer */}
-      <main className="flex-1">
-        {pdfUrl ? (
-          <PDFRenderer 
-            pdfUrl={pdfUrl}
-            onPageView={handlePageView}
-            onPageExit={handlePageExit}
-          />
-        ) : (
-          <div className="h-screen flex items-center justify-center">
-            <div className="text-center">
-              <FileText className="w-12 h-12 text-neutral-600 mx-auto mb-4" />
-              <p className="text-neutral-400">Unable to load PDF</p>
-            </div>
+      {/* PDF Viewer content */}
+      <main className="flex-1 flex flex-col pt-[70px]">
+        {/* Top Ad Banner */}
+        <div className="bg-neutral-900 border-b border-neutral-800 py-2">
+          <div className="max-w-[728px] mx-auto min-h-[90px] flex items-center justify-center">
+            <AdBanner slot="VIEWER_TOP_SLOT" format="horizontal" className="w-full" />
+            <AdPlaceholder height="90px" width="728px" />
           </div>
-        )}
+        </div>
+
+        <div className="flex-1">
+          {pdfUrl ? (
+            <PDFRenderer
+              pdfUrl={pdfUrl}
+              onPageView={handlePageView}
+              onPageExit={handlePageExit}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="w-12 h-12 text-neutral-600 mx-auto mb-4" />
+                <p className="text-neutral-400">Unable to load PDF</p>
+              </div>
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Minimal branding footer */}
       <footer className="fixed bottom-0 left-0 right-0 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
         <div className="bg-gradient-to-t from-black/80 to-transparent py-4 px-6">
           <div className="text-center">
-            <a 
-              href="/" 
+            <a
+              href="/"
               className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors pointer-events-auto"
               target="_blank"
               rel="noopener noreferrer"

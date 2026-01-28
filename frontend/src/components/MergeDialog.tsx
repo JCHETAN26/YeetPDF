@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { mergePDFs } from "@/lib/api";
 import type { UploadProgress } from "@/types";
+import { InterstitialAd } from "./InterstitialAd";
 
 interface MergeDialogProps {
     files: File[];
@@ -29,6 +30,10 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // Ad state
+    const [showAd, setShowAd] = useState(false);
+    const [pendingDocument, setPendingDocument] = useState<any>(null);
 
     const generateSlug = (name: string) => {
         return name
@@ -70,20 +75,32 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
                 setUploadProgress(progress);
             });
 
-            navigate("/success", {
-                state: {
-                    documentId: document.id,
-                    fileName: document.fileName,
-                    fileSize: document.fileSize,
-                    pageCount: document.pageCount,
-                    shareUrl: document.shareUrl,
-                    viewerUrl: document.viewerUrl,
-                    analyticsUrl: document.analyticsUrl,
-                },
+            // Store document and show ad instead of navigating immediately
+            setPendingDocument({
+                documentId: document.id,
+                fileName: document.fileName,
+                fileSize: document.fileSize,
+                pageCount: document.pageCount,
+                shareUrl: document.shareUrl,
+                viewerUrl: document.viewerUrl,
+                analyticsUrl: document.analyticsUrl,
+                expiresAt: document.expiresAt.toISOString(),
             });
+
+            setIsUploading(false);
+            onOpenChange(false); // Close dialog
+            setShowAd(true);     // Show ad overlay
+
         } catch (err: any) {
             setError(err.message || "Merge failed");
             setIsUploading(false);
+        }
+    };
+
+    const handleAdComplete = () => {
+        setShowAd(false);
+        if (pendingDocument) {
+            navigate("/success", { state: pendingDocument });
         }
     };
 
@@ -94,128 +111,136 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Layers className="h-5 w-5 text-primary" />
-                        Merge PDFs
-                    </DialogTitle>
-                    <DialogDescription>
-                        {files.length} files selected • {formatSize(totalSize)} total
-                    </DialogDescription>
-                </DialogHeader>
+        <>
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Layers className="h-5 w-5 text-primary" />
+                            Merge PDFs
+                        </DialogTitle>
+                        <DialogDescription>
+                            {files.length} files selected • {formatSize(totalSize)} total
+                        </DialogDescription>
+                    </DialogHeader>
 
-                {!isUploading ? (
-                    <div className="space-y-4 py-4">
-                        {/* File list */}
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {files.map((file, index) => (
-                                <div
-                                    key={`${file.name}-${index}`}
-                                    className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 group"
-                                >
-                                    <button
-                                        type="button"
-                                        className="cursor-grab text-muted-foreground hover:text-foreground"
-                                        onMouseDown={(e) => e.preventDefault()}
+                    {!isUploading ? (
+                        <div className="space-y-4 py-4">
+                            {/* File list */}
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {files.map((file, index) => (
+                                    <div
+                                        key={`${file.name}-${index}`}
+                                        className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 group"
                                     >
-                                        <GripVertical className="h-4 w-4" />
-                                    </button>
-                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                        <FileText className="h-4 w-4 text-primary shrink-0" />
-                                        <span className="text-sm truncate">{file.name}</span>
-                                        <span className="text-xs text-muted-foreground shrink-0">
-                                            {formatSize(file.size)}
-                                        </span>
+                                        <button
+                                            type="button"
+                                            className="cursor-grab text-muted-foreground hover:text-foreground"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                        >
+                                            <GripVertical className="h-4 w-4" />
+                                        </button>
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <FileText className="h-4 w-4 text-primary shrink-0" />
+                                            <span className="text-sm truncate">{file.name}</span>
+                                            <span className="text-xs text-muted-foreground shrink-0">
+                                                {formatSize(file.size)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                className="p-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                                onClick={() => moveFile(index, index - 1)}
+                                                disabled={index === 0}
+                                            >
+                                                ↑
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="p-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                                onClick={() => moveFile(index, index + 1)}
+                                                disabled={index === files.length - 1}
+                                            >
+                                                ↓
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="p-1 text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleRemoveFile(index)}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            className="p-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                                            onClick={() => moveFile(index, index - 1)}
-                                            disabled={index === 0}
-                                        >
-                                            ↑
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="p-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                                            onClick={() => moveFile(index, index + 1)}
-                                            disabled={index === files.length - 1}
-                                        >
-                                            ↓
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="p-1 text-muted-foreground hover:text-destructive"
-                                            onClick={() => handleRemoveFile(index)}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Custom name */}
-                        <div className="space-y-2">
-                            <Label htmlFor="combined-name">Combined File Name (Optional)</Label>
-                            <Input
-                                id="combined-name"
-                                placeholder="My Application Package"
-                                value={customName}
-                                onChange={(e) => setCustomName(e.target.value)}
-                                maxLength={100}
-                            />
-                        </div>
-
-                        {/* Custom slug */}
-                        <div className="space-y-2">
-                            <Label htmlFor="custom-slug">Custom Link (Optional)</Label>
-                            <Input
-                                id="custom-slug"
-                                placeholder="my-application"
-                                value={customSlug}
-                                onChange={(e) => setCustomSlug(e.target.value)}
-                                maxLength={50}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Your link will be:{" "}
-                                <code className="px-1.5 py-0.5 rounded bg-muted font-mono">
-                                    /v/{previewSlug}
-                                </code>
-                            </p>
-                        </div>
-
-                        {error && (
-                            <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                                {error}
+                                ))}
                             </div>
-                        )}
 
-                        <Button
-                            className="w-full"
-                            variant="premium"
-                            onClick={handleMerge}
-                            disabled={files.length < 2}
-                        >
-                            <Layers className="h-4 w-4 mr-2" />
-                            Merge & Get Link
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="py-8 space-y-4">
-                        <div className="flex flex-col items-center gap-4">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground">
-                                {uploadProgress?.message || "Merging..."}
-                            </p>
+                            {/* Custom name */}
+                            <div className="space-y-2">
+                                <Label htmlFor="combined-name">Combined File Name (Optional)</Label>
+                                <Input
+                                    id="combined-name"
+                                    placeholder="My Application Package"
+                                    value={customName}
+                                    onChange={(e) => setCustomName(e.target.value)}
+                                    maxLength={100}
+                                />
+                            </div>
+
+                            {/* Custom slug */}
+                            <div className="space-y-2">
+                                <Label htmlFor="custom-slug">Custom Link (Optional)</Label>
+                                <Input
+                                    id="custom-slug"
+                                    placeholder="my-application"
+                                    value={customSlug}
+                                    onChange={(e) => setCustomSlug(e.target.value)}
+                                    maxLength={50}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Your link will be:{" "}
+                                    <code className="px-1.5 py-0.5 rounded bg-muted font-mono">
+                                        /v/{previewSlug}
+                                    </code>
+                                </p>
+                            </div>
+
+                            {error && (
+                                <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <Button
+                                className="w-full"
+                                variant="premium"
+                                onClick={handleMerge}
+                                disabled={files.length < 2}
+                            >
+                                <Layers className="h-4 w-4 mr-2" />
+                                Merge & Get Link
+                            </Button>
                         </div>
-                        <Progress value={uploadProgress?.progress || 0} />
-                    </div>
-                )}
-            </DialogContent>
-        </Dialog>
+                    ) : (
+                        <div className="py-8 space-y-4">
+                            <div className="flex flex-col items-center gap-4">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                <p className="text-sm text-muted-foreground">
+                                    {uploadProgress?.message || "Merging..."}
+                                </p>
+                            </div>
+                            <Progress value={uploadProgress?.progress || 0} />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Interstitial Ad Overlay */}
+            <InterstitialAd
+                open={showAd}
+                onComplete={handleAdComplete}
+            />
+        </>
     );
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { formatFileSize } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
 const UploadSuccess = () => {
   const location = useLocation();
@@ -229,8 +230,14 @@ const UploadSuccess = () => {
               )}
             </div>
 
+            {/* Ad Banner on Success Page */}
+            <div className="mt-8 mb-4">
+              <AdBanner slot="SUCCESS_PAGE_SLOT" format="horizontal" />
+              <AdPlaceholder height="90px" />
+            </div>
+
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-4">
               <Button
                 variant="outline"
                 size="lg"
@@ -267,8 +274,8 @@ const UploadSuccess = () => {
             </Button>
           </div>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 };
 
