@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { PDFDocument } from 'pdf-lib';
 import { generateId, createDocument, updateDocument, getDocument, pdfData } from '../store.js';
 import {
   isS3Configured,
@@ -292,9 +293,6 @@ router.post('/merge', optionalAuthMiddleware, (req, res) => {
       if (!files || files.length < 2) {
         return res.status(400).json({ error: 'At least 2 PDF files are required' });
       }
-
-      // Dynamic import pdf-lib
-      const { PDFDocument } = await import('pdf-lib');
 
       // Create merged PDF
       const mergedPdf = await PDFDocument.create();
