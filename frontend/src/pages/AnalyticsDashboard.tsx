@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { 
-  FileText, 
-  Eye, 
-  Clock, 
-  TrendingUp, 
+import {
+  FileText,
+  Eye,
+  Clock,
+  TrendingUp,
   BarChart3,
   ArrowLeft,
   Users,
@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getDocument, getDocumentAnalytics } from "@/lib/api";
 import { formatDuration } from "@/types";
 import type { PDFDocument, DocumentAnalytics } from "@/types";
+import { InterstitialAd } from "@/components/InterstitialAd";
+import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
 const AnalyticsDashboard = () => {
   const navigate = useNavigate();
@@ -29,30 +31,39 @@ const AnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAd, setShowAd] = useState(false);
+  const [hasShownAd, setHasShownAd] = useState(false);
 
   const loadData = async (showRefresh = false) => {
     const docId = documentId || 'demo123';
-    
+
     if (showRefresh) {
       setIsRefreshing(true);
     } else {
-      setIsLoading(true);
+      // Only show loading state if we are doing a full reload
+      if (!isRefreshing) setIsLoading(true);
     }
-    
+
     try {
       const [doc, analyticsData] = await Promise.all([
         getDocument(docId),
         getDocumentAnalytics(docId)
       ]);
-      
+
       if (!doc) {
         setError("Document not found or has expired");
         return;
       }
-      
+
       setDocument(doc);
       setAnalytics(analyticsData);
       setError(null);
+
+      // Show ad only on first load
+      if (!showRefresh && !hasShownAd) {
+        setShowAd(true);
+        setHasShownAd(true);
+      }
     } catch (err) {
       setError("Failed to load analytics");
     } finally {
@@ -105,6 +116,9 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Interstitial Ad */}
+      <InterstitialAd open={showAd} onComplete={() => setShowAd(false)} />
+
       {/* Header */}
       <header className="w-full py-4 px-6 border-b border-border bg-card sticky top-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -128,18 +142,18 @@ const AnalyticsDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => loadData(true)}
               disabled={isRefreshing}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button 
-              variant="subtle" 
-              size="sm" 
+            <Button
+              variant="subtle"
+              size="sm"
               onClick={() => navigate(document?.viewerUrl || `/v/${documentId}`)}
             >
               <ExternalLink className="w-4 h-4 mr-2" />
@@ -205,7 +219,7 @@ const AnalyticsDashboard = () => {
               <TrendingUp className="w-8 h-8 text-heatmap-high" />
             </div>
           </div>
-          
+
           <div className="premium-card p-5 animate-fade-in" style={{ animationDelay: "0.2s" }}>
             <div className="flex items-center justify-between">
               <div>
@@ -236,7 +250,7 @@ const AnalyticsDashboard = () => {
               <BarChart3 className="w-5 h-5" />
               Page Engagement Heatmap
             </h3>
-            
+
             <div className="space-y-3">
               {analytics.pages.map((page) => (
                 <div key={page.pageNumber} className="flex items-center gap-4">
@@ -247,7 +261,7 @@ const AnalyticsDashboard = () => {
                     <div className="h-8 bg-muted rounded-lg overflow-hidden">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <div 
+                          <div
                             className={`h-full rounded-lg ${getEngagementColor(page.engagementScore)} transition-all duration-500 cursor-pointer hover:opacity-80`}
                             style={{ width: `${Math.max(5, (page.views / maxViews) * 100)}%` }}
                           />
@@ -291,7 +305,7 @@ const AnalyticsDashboard = () => {
             <h3 className="text-lg font-semibold text-foreground mb-6">
               Engagement Funnel
             </h3>
-            
+
             <div className="space-y-5">
               {analytics.funnel.map((stage, index) => (
                 <div key={stage.stage} className="relative">
@@ -300,9 +314,9 @@ const AnalyticsDashboard = () => {
                     <span className="text-sm font-semibold text-foreground">{stage.percentage}%</span>
                   </div>
                   <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-primary rounded-full transition-all duration-700"
-                      style={{ 
+                      style={{
                         width: `${stage.percentage}%`,
                         opacity: 1 - (index * 0.15)
                       }}
@@ -332,7 +346,7 @@ const AnalyticsDashboard = () => {
                   <Tooltip key={day.date}>
                     <TooltipTrigger asChild>
                       <div className="flex-1 flex flex-col items-center gap-2">
-                        <div 
+                        <div
                           className="w-full bg-primary/80 hover:bg-primary rounded-t transition-all cursor-pointer"
                           style={{ height: `${Math.max(8, height)}%` }}
                         />
@@ -360,8 +374,9 @@ const AnalyticsDashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <span className="sponsored-badge">Sponsored</span>
           </div>
-          <div className="h-24 bg-muted/50 rounded-xl flex items-center justify-center border border-dashed border-border">
-            <span className="text-sm text-muted-foreground">AdSense Leaderboard (728x90)</span>
+          <div className="flex justify-center">
+            <AdBanner slot="6116066065" format="horizontal" />
+            <AdPlaceholder height="90px" />
           </div>
         </div>
       </main>
