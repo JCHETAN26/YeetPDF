@@ -177,7 +177,7 @@ const LandingPage = () => {
               see who reads what. No signup required.
             </p>
 
-            {/* Mode Toggle */}
+            {/* Mode Toggle - Hidden for v1 release
             <div className="flex items-center justify-center gap-2 mb-8 animate-fade-in" style={{ animationDelay: "0.15s" }}>
               <button
                 onClick={() => {
@@ -207,6 +207,7 @@ const LandingPage = () => {
                 Merge PDFs
               </button>
             </div>
+            */}
 
             {/* Upload Zone */}
             <div
