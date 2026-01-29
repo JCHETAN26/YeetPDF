@@ -172,13 +172,7 @@ const PublicViewer = () => {
 
       {/* PDF Viewer content */}
       <main className="flex-1 flex flex-col pt-[70px]">
-        {/* Top Ad Banner */}
-        <div className="bg-neutral-900 border-b border-neutral-800 py-2">
-          <div className="max-w-[728px] mx-auto min-h-[90px] flex items-center justify-center">
-            <AdBanner slot="6133551398" format="horizontal" className="w-full" />
-            <AdPlaceholder height="90px" width="728px" />
-          </div>
-        </div>
+
 
         <div className="flex-1">
           {pdfUrl ? (
