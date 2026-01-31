@@ -10,7 +10,6 @@ import { PDFRenderer } from "@/components/PDFRenderer";
 import { getDocument, trackPageView, startSession } from "@/lib/api";
 import type { PDFDocument } from "@/types";
 import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
-import { InterstitialAd } from "@/components/InterstitialAd";
 
 /**
  * PublicViewer - Clean, distraction-free PDF viewer for link recipients
@@ -21,8 +20,6 @@ const PublicViewer = () => {
   const [document, setDocument] = useState<PDFDocument | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAd, setShowAd] = useState(false);
-  const [hasShownAd, setHasShownAd] = useState(false);
 
   // PDF URL - direct from backend
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -59,10 +56,6 @@ const PublicViewer = () => {
         setError("Failed to load document");
       } finally {
         setIsLoading(false);
-        if (!hasShownAd) {
-          setShowAd(true);
-          setHasShownAd(true);
-        }
       }
     }
 
@@ -143,7 +136,6 @@ const PublicViewer = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-950">
-      <InterstitialAd open={showAd} onComplete={() => setShowAd(false)} />
       {/* Minimal Header - appears on hover */}
       <header className="fixed top-0 left-0 right-0 z-50 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none">
         <div className="bg-gradient-to-b from-black/80 to-transparent py-4 px-6 pointer-events-auto">

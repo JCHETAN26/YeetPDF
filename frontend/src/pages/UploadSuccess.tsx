@@ -7,12 +7,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
+
+import { InterstitialAd } from "@/components/InterstitialAd";
+
 const UploadSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, login } = useAuth();
   const [copiedShare, setCopiedShare] = useState(false);
   const [copiedAnalytics, setCopiedAnalytics] = useState(false);
+  const [showAd, setShowAd] = useState(true);
 
   const {
     documentId,
@@ -78,6 +82,8 @@ const UploadSuccess = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Interstitial Ad */}
+      <InterstitialAd open={showAd} onComplete={() => setShowAd(false)} />
 
       {/* Header */}
       <header className="w-full py-6 px-8">
