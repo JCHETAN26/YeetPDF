@@ -15,7 +15,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { uploadPDF } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import type { UploadProgress } from "@/types";
-import { InterstitialAd } from "./InterstitialAd";
 
 interface UploadDialogProps {
   open: boolean;
@@ -30,9 +29,7 @@ export function UploadDialog({ open, onOpenChange, file }: UploadDialogProps) {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Ad state
-  const [showAd, setShowAd] = useState(false);
-  const [pendingDocument, setPendingDocument] = useState<any>(null);
+
 
   const generateSlug = (name: string) => {
     return name
@@ -54,22 +51,19 @@ export function UploadDialog({ open, onOpenChange, file }: UploadDialogProps) {
         setUploadProgress(progress);
       });
 
-      // Store document and show ad instead of navigating immediately
-      setPendingDocument({
-        documentId: document.id,
-        fileName: document.fileName,
-        fileSize: document.fileSize,
-        pageCount: document.pageCount,
-        shareUrl: document.shareUrl,
-        viewerUrl: document.viewerUrl,
-        analyticsUrl: document.analyticsUrl,
-        expiresAt: document.expiresAt.toISOString(),
-        customName: customName || undefined,
+      navigate("/success", {
+        state: {
+          documentId: document.id,
+          fileName: document.fileName,
+          fileSize: document.fileSize,
+          pageCount: document.pageCount,
+          shareUrl: document.shareUrl,
+          viewerUrl: document.viewerUrl,
+          analyticsUrl: document.analyticsUrl,
+          expiresAt: document.expiresAt.toISOString(),
+          customName: customName || undefined,
+        }
       });
-
-      setIsUploading(false);
-      onOpenChange(false); // Close dialog
-      setShowAd(true);     // Show ad overlay
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
@@ -78,12 +72,7 @@ export function UploadDialog({ open, onOpenChange, file }: UploadDialogProps) {
     }
   };
 
-  const handleAdComplete = () => {
-    setShowAd(false);
-    if (pendingDocument) {
-      navigate("/success", { state: pendingDocument });
-    }
-  };
+
 
   const previewSlug = customName ? generateSlug(customName) : "random-id";
 
@@ -166,12 +155,6 @@ export function UploadDialog({ open, onOpenChange, file }: UploadDialogProps) {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Interstitial Ad Overlay */}
-      <InterstitialAd
-        open={showAd}
-        onComplete={handleAdComplete}
-      />
     </>
   );
 }

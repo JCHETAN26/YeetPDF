@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { PDFRenderer } from "@/components/PDFRenderer";
 import { getDocument, trackPageView, startSession } from "@/lib/api";
 import type { PDFDocument } from "@/types";
-import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
 /**
  * PublicViewer - Clean, distraction-free PDF viewer for link recipients

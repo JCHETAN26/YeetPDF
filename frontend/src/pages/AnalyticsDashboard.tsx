@@ -20,8 +20,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { getDocument, getDocumentAnalytics } from "@/lib/api";
 import { formatDuration } from "@/types";
 import type { PDFDocument, DocumentAnalytics } from "@/types";
-import { InterstitialAd } from "@/components/InterstitialAd";
-import { AdBanner, AdPlaceholder } from "@/components/AdBanner";
 
 const AnalyticsDashboard = () => {
   const navigate = useNavigate();
@@ -31,8 +29,6 @@ const AnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showAd, setShowAd] = useState(false);
-  const [hasShownAd, setHasShownAd] = useState(false);
 
   const loadData = async (showRefresh = false) => {
     const docId = documentId || 'demo123';
@@ -59,11 +55,7 @@ const AnalyticsDashboard = () => {
       setAnalytics(analyticsData);
       setError(null);
 
-      // Show ad only on first load
-      if (!showRefresh && !hasShownAd) {
-        setShowAd(true);
-        setHasShownAd(true);
-      }
+
     } catch (err) {
       setError("Failed to load analytics");
     } finally {
@@ -116,8 +108,7 @@ const AnalyticsDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Interstitial Ad */}
-      <InterstitialAd open={showAd} onComplete={() => setShowAd(false)} />
+
 
       {/* Header */}
       <header className="w-full py-4 px-6 border-b border-border bg-card sticky top-0 z-40">
@@ -369,16 +360,7 @@ const AnalyticsDashboard = () => {
           </div>
         )}
 
-        {/* Ad Placeholder */}
-        <div className="mt-8 premium-card p-6 animate-fade-in" style={{ animationDelay: "0.35s" }}>
-          <div className="flex items-center justify-between mb-4">
-            <span className="sponsored-badge">Sponsored</span>
-          </div>
-          <div className="flex justify-center">
-            <AdBanner slot="6116066065" format="horizontal" />
-            <AdPlaceholder height="90px" />
-          </div>
-        </div>
+
       </main>
     </div>
   );

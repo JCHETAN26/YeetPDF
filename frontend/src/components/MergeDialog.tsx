@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { mergePDFs } from "@/lib/api";
 import type { UploadProgress } from "@/types";
-import { InterstitialAd } from "./InterstitialAd";
 
 interface MergeDialogProps {
     files: File[];
@@ -31,9 +30,7 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
     const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // Ad state
-    const [showAd, setShowAd] = useState(false);
-    const [pendingDocument, setPendingDocument] = useState<any>(null);
+
 
     const generateSlug = (name: string) => {
         return name
@@ -75,21 +72,18 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
                 setUploadProgress(progress);
             });
 
-            // Store document and show ad instead of navigating immediately
-            setPendingDocument({
-                documentId: document.id,
-                fileName: document.fileName,
-                fileSize: document.fileSize,
-                pageCount: document.pageCount,
-                shareUrl: document.shareUrl,
-                viewerUrl: document.viewerUrl,
-                analyticsUrl: document.analyticsUrl,
-                expiresAt: document.expiresAt.toISOString(),
+            navigate("/success", {
+                state: {
+                    documentId: document.id,
+                    fileName: document.fileName,
+                    fileSize: document.fileSize,
+                    pageCount: document.pageCount,
+                    shareUrl: document.shareUrl,
+                    viewerUrl: document.viewerUrl,
+                    analyticsUrl: document.analyticsUrl,
+                    expiresAt: document.expiresAt.toISOString(),
+                }
             });
-
-            setIsUploading(false);
-            onOpenChange(false); // Close dialog
-            setShowAd(true);     // Show ad overlay
 
         } catch (err: any) {
             setError(err.message || "Merge failed");
@@ -97,12 +91,7 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
         }
     };
 
-    const handleAdComplete = () => {
-        setShowAd(false);
-        if (pendingDocument) {
-            navigate("/success", { state: pendingDocument });
-        }
-    };
+
 
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
     const formatSize = (bytes: number) => {
@@ -236,11 +225,6 @@ export function MergeDialog({ files, open, onOpenChange, onFilesChange }: MergeD
                 </DialogContent>
             </Dialog>
 
-            {/* Interstitial Ad Overlay */}
-            <InterstitialAd
-                open={showAd}
-                onComplete={handleAdComplete}
-            />
         </>
     );
 }
