@@ -322,19 +322,19 @@ const LandingPage = () => {
           <div className="max-w-5xl mx-auto px-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               <div>
-                <div className="text-3xl font-bold text-foreground">2M+</div>
+                <div className="text-3xl font-bold text-foreground">300+</div>
                 <div className="text-sm text-muted-foreground mt-1">PDFs Shared</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-foreground">10M+</div>
+                <div className="text-3xl font-bold text-foreground">1,000+</div>
                 <div className="text-sm text-muted-foreground mt-1">Page Views Tracked</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-foreground">150+</div>
+                <div className="text-3xl font-bold text-foreground">2+</div>
                 <div className="text-sm text-muted-foreground mt-1">Countries</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-foreground">4.9★</div>
+                <div className="text-3xl font-bold text-foreground">4.8★</div>
                 <div className="text-sm text-muted-foreground mt-1">User Rating</div>
               </div>
             </div>
